@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
 
 interface OrderItem {
   variantId: number;
@@ -87,7 +86,7 @@ export default function OrderDetails() {
             <p className="mt-4 text-gray-600">Loading order details...</p>
           </div>
         </div>
-        <Footer />
+
       </div>
     );
   }
@@ -107,7 +106,7 @@ export default function OrderDetails() {
             </button>
           </div>
         </div>
-        <Footer />
+
       </div>
     );
   }
@@ -267,7 +266,7 @@ export default function OrderDetails() {
           </div>
         </div>
       </div>
-      <Footer />
+
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { useDispatch } from "react-redux";
 import { addToCart } from "../store/cartSlice";
@@ -7,6 +7,7 @@ import { Truck, ShieldCheck, ShoppingBag } from "lucide-react";
 
 const ProductDetails = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
   const dispatch = useDispatch();
 
   const [product, setProduct] = useState<any>(null);
@@ -199,6 +200,27 @@ const ProductDetails = () => {
               >
                 <ShoppingBag size={20} />
                 {isValidCombination ? "Add to Cart" : "Unavailable"}
+              </button>
+              
+              <button
+                onClick={() => {
+                    const directBuyItem = {
+                        id: currentVariant.id,
+                        productId: product.id,
+                        title: product.title,
+                        price: currentVariant.price,
+                        image: currentVariant.images?.[0]?.url || "https://via.placeholder.com/500",
+                        color: selectedColor,
+                        size: selectedSize,
+                        quantity: 1,
+                        maxStock: currentVariant.inventory?.quantity || 0,
+                    };
+                    navigate('/checkout', { state: { directBuyItem } });
+                }}
+                disabled={!isValidCombination}
+                className="flex-1 bg-white border-2 border-black text-black h-14 rounded-full font-bold text-sm uppercase tracking-widest hover:bg-gray-50 transition-colors disabled:bg-gray-100 disabled:border-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed"
+              >
+                Buy Now
               </button>
             </div>
 

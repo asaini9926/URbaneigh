@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
 
 interface Return {
   return_id: number;
@@ -81,7 +80,7 @@ export default function ReturnTracking() {
             <p className="mt-4 text-gray-600">Loading return details...</p>
           </div>
         </div>
-        <Footer />
+
       </div>
     );
   }
@@ -101,7 +100,7 @@ export default function ReturnTracking() {
             </button>
           </div>
         </div>
-        <Footer />
+
       </div>
     );
   }
@@ -294,7 +293,7 @@ export default function ReturnTracking() {
           </div>
         </div>
       </div>
-      <Footer />
+
     </div>
   );
 }

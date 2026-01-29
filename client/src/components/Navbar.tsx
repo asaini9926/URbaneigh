@@ -1,4 +1,5 @@
 import { ShoppingBag, User, Search, Menu, X, LogOut } from "lucide-react";
+import logo from "../assets/logo.png";
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
@@ -49,9 +50,11 @@ const Navbar = () => {
         <div className="flex justify-between items-center h-16">
           {/* 1. Logo (Z-Index ensures it stays above search bar on mobile if needed) */}
           <Link to="/" className="flex items-center gap-2 group z-20">
-            <div className="bg-black text-white p-1.5 rounded-md group-hover:rotate-3 transition-transform">
-              <ShoppingBag size={20} />
-            </div>
+            <img 
+              src={logo} 
+              alt="Urbaneigh" 
+              className="h-12 w-auto object-contain" 
+            />
             <span className="font-bold text-xl tracking-tight text-gray-900">
               URBANIEGH
             </span>

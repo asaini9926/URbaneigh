@@ -39,6 +39,7 @@ import AdminReturns from "./pages/admin/AdminReturns";
 import AdminReconciliation from "./pages/admin/AdminReconciliation";
 import NotificationCenter from "./pages/NotificationCenter";
 import AnalyticsDashboard from "./pages/admin/AnalyticsDashboard";
+import ScrollToTop from "./components/ScrollToTop";
 
 // Separate component to handle conditional Layout (Navbar/Footer)
 const ContentWrapper = () => {
@@ -64,41 +65,25 @@ const ContentWrapper = () => {
           <Route
             path="/refund-policy"
             element={
-              <>
-                <Navbar />
-                <RefundPolicy />
-                <Footer />
-              </>
+              <RefundPolicy />
             }
           />
           <Route
             path="/shipping-policy"
             element={
-              <>
-                <Navbar />
-                <ShippingPolicy />
-                <Footer />
-              </>
+              <ShippingPolicy />
             }
           />
           <Route
             path="/terms-conditions"
             element={
-              <>
-                <Navbar />
-                <TermsPolicy />
-                <Footer />
-              </>
+              <TermsPolicy />
             }
           />
           <Route
             path="/privacy-policy"
             element={
-              <>
-                <Navbar />
-                <PrivacyPolicy />
-                <Footer />
-              </>
+              <PrivacyPolicy />
             }
           />
 
@@ -142,6 +127,7 @@ const ContentWrapper = () => {
 function App() {
   return (
     <Router>
+      <ScrollToTop />
       <div className="min-h-screen bg-white text-gray-900 font-sans">
         <ContentWrapper />
       </div>
