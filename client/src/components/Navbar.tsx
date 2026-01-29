@@ -144,10 +144,16 @@ const Navbar = () => {
                     </Link>
                   )}
                   <Link
-                    to="/profile"
+                    to="/notifications"
                     className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    My Orders
+                    🔔 Notifications
+                  </Link>
+                  <Link
+                    to="/order-history"
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Order History
                   </Link>
                   <button
                     onClick={handleLogout}

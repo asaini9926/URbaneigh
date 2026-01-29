@@ -13,6 +13,14 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const couponRoutes = require('./routes/couponRoutes');
 const marketingRoutes = require('./routes/marketingRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const shipmentRoutes = require('./routes/shipmentRoutes');
+const codRoutes = require('./routes/codRoutes');
+const returnRoutes = require('./routes/returnRoutes');
+const refundRoutes = require('./routes/refundRoutes');
+const reconciliationRoutes = require('./routes/reconciliationRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -46,6 +54,15 @@ app.use('/api/admin', adminRoutes);
 
 app.use('/api/coupons', couponRoutes);
 app.use('/api/marketing', marketingRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/shipments', shipmentRoutes);
+app.use('/api/cod', codRoutes);
+app.use('/api/returns', returnRoutes);
+app.use('/api/refunds', refundRoutes);
+app.use('/api/reconciliation', reconciliationRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/analytics', analyticsRoutes);
+
 // Database Connection Check
 async function main() {
     try {

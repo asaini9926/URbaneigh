@@ -31,6 +31,7 @@ model User {
   cart          Cart?
   tickets       Ticket[]
   auditLogs     AuditLog[] // Logs of actions done by this user
+  returns       Return[]
 
   @@map("users")
 }
@@ -151,12 +152,14 @@ model ProductImage {
 }
 
 model Inventory {
-  id          Int      @id @default(autoincrement())
-  variantId   Int      @unique
-  quantity    Int      @default(0)
-  warehouseId String?  // Optional for future scaling
+  id               Int      @id @default(autoincrement())
+  variantId        Int      @unique
+  quantity         Int      @default(0)          // Total available quantity
+  reserved_qty     Int      @default(0)          // Quantity on hold for payment-pending orders
+  warehouseId      String?  // Optional for future scaling
 
-  variant     ProductVariant @relation(fields: [variantId], references: [id])
+  variant          ProductVariant @relation(fields: [variantId], references: [id])
+  reservations     Reservation[]
 
   @@map("inventory")
 }
@@ -195,9 +198,11 @@ model Order {
   orderNumber     String         @unique
   userId          Int
   totalAmount     Decimal        @db.Decimal(10, 2)
-  status          OrderStatus    @default(PENDING_PAYMENT)
+  status          OrderStatus    @default(CREATED)  // Payment readiness only (7 states)
   paymentMethod   PaymentMethod
   shippingAddress Json           // Storing address snapshot to prevent history changes
+  idempotencyKey  String         @unique // For idempotent order creation
+  notes           String?        @db.Text       // Order history/notes
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -206,6 +211,11 @@ model Order {
   payment         Payment?
   invoice         Invoice?
   tickets         Ticket[]
+  reservations    Reservation[]
+  shipments       Shipment[]
+  return          Return?
+  refund          Refund?
+  reconciliationAlerts ReconciliationAlert[]
 
   @@map("orders")
 }
@@ -224,17 +234,34 @@ model OrderItem {
 }
 
 model Payment {
-  id            Int           @id @default(autoincrement())
-  orderId       Int           @unique
-  method        PaymentMethod
-  amount        Decimal       @db.Decimal(10, 2)
-  status        PaymentStatus @default(PENDING)
-  qrReference   String?       // Transaction ID user types in
-  proofUrl      String?       // Image of screenshot
-  verifiedBy    Int?          // Admin ID who verified
-  verifiedAt    DateTime?
+  id               Int           @id @default(autoincrement())
+  orderId          Int           @unique
+  method           PaymentMethod
+  amount           Decimal       @db.Decimal(10, 2)
+  status           PaymentStatus @default(PENDING)
+  
+  // Paytm Fields
+  paytm_txn_id     String?       @unique
+  paytm_status     String?
+  gateway_response Json?         // Full Paytm API response
+  
+  // COD Fields
+  cod_otp          String?       // OTP for delivery verification
+  cod_otp_expires_at DateTime?   // OTP expiry time (2 hours)
+  cod_verified_at  DateTime?
+  cod_attempts     Int           @default(0)
+  
+  // Refund Fields
+  refunded_at      DateTime?
+  refund_amount    Decimal?      @db.Decimal(10, 2)
+  refund_txn_id    String?
+  
+  // Settlement Fields (for COD)
+  is_remitted      Boolean       @default(false)
+  remitted_at      DateTime?
+  remit_reference  String?
 
-  order         Order         @relation(fields: [orderId], references: [id])
+  order            Order         @relation(fields: [orderId], references: [id])
 
   @@map("payments")
 }
@@ -324,7 +351,188 @@ model Coupon {
 }
 
 // ==============================
-// 5. ENUMS
+// 6. RESERVATIONS (Stock Hold for Payments)
+// ==============================
+
+model Reservation {
+  id           Int      @id @default(autoincrement())
+  orderId      Int
+  variantId    Int
+  quantity     Int
+  expiresAt    DateTime // Time when this hold expires if payment not completed
+  status       ReservationStatus @default(ACTIVE) // ACTIVE, EXPIRED, RELEASED, FINALIZED
+  createdAt    DateTime @default(now())
+
+  order        Order          @relation(fields: [orderId], references: [id])
+  inventory    Inventory      @relation(fields: [variantId], references: [variantId])
+
+  @@map("reservations")
+}
+
+// ==============================
+// 7. SHIPMENTS & DELIVERY (Delhivery Integration)
+// ==============================
+
+model Shipment {
+  id               Int             @id @default(autoincrement())
+  orderId          Int
+  courier_provider String          // "DELHIVERY", "FEDEX", etc.
+  waybill          String          @unique // AWB number from Delhivery
+  status           ShipmentStatus  @default(CREATED)  // Delivery status (independent)
+  
+  // Delhivery Details
+  delhivery_waybill String?
+  delhivery_manifest_id String?
+  delhivery_pickup_id String?
+  delhivery_last_status_update Json? // Last tracking payload from webhook
+  
+  // COD Details
+  cod_amount       Decimal?        @db.Decimal(10, 2)
+  
+  // Warehouse Info
+  warehouseId      String?
+  pickedUpAt       DateTime?
+  manifestedAt     DateTime?
+  
+  // Tracking & Delivery (moved from Order)
+  last_tracking_update DateTime?
+  estimated_delivery DateTime?
+  delivered_at     DateTime?       // When was this shipment delivered
+  failed_delivery_attempts Int    @default(0)  // RTO attempts for this shipment
+
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  order            Order           @relation(fields: [orderId], references: [id])
+
+  @@map("shipments")
+}
+
+// ==============================
+// 8. COD REMITTANCE & RECONCILIATION
+// ==============================
+
+model CODRemittance {
+  id                 Int       @id @default(autoincrement())
+  remittanceDate     DateTime
+  totalAmount        Decimal   @db.Decimal(10, 2)
+  settlementDate     DateTime?
+  status             RemittanceStatus @default(PENDING) // PENDING, SETTLED, VERIFIED
+  reference_number   String    @unique // Delhivery or Bank reference
+  bankTransactionId  String?
+  notes              String?
+  
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@map("cod_remittances")
+}
+
+// ==============================
+// 9. RETURNS & REFUNDS (Phase 5)
+// ==============================
+
+model Return {
+  id                      Int       @id @default(autoincrement())
+  orderId                 Int       @unique
+  userId                  Int
+  status                  ReturnStatus @default(REQUESTED) // REQUESTED, APPROVED, REJECTED, IN_TRANSIT, RECEIVED, RETURNED
+  reason                  String    // e.g., "WRONG_ITEM", "DAMAGED", "NOT_AS_DESCRIBED"
+  description             String?   @db.Text
+  items                   Json      // Array of { variantId, quantity, reason }
+  estimatedRefundAmount   Decimal   @db.Decimal(10, 2)
+  approvedRefundAmount    Decimal?  @db.Decimal(10, 2) // Admin sets this after review
+  
+  // Return Pickup Details
+  pickupScheduledAt       DateTime?
+  pickupCompletedAt       DateTime?
+  returnWaybill           String?   // Delhivery RTO waybill number
+  returnStatus            String?   // SCHEDULED, PICKED, IN_TRANSIT, RECEIVED
+  
+  // Condition Assessment
+  conditionAssessment     String?   @db.Text // Admin notes on goods condition
+  conditionScore          Int?      // 1-10 rating
+  
+  // Rejection Details (if admin rejects)
+  rejectionReason         String?   // Reason for rejection
+  rejectedAt              DateTime?
+  
+  // Timestamps
+  requestedAt             DateTime  @default(now())
+  approvedAt              DateTime?
+  completedAt             DateTime?
+  
+  // Audit Trail
+  notes                   String?   @db.Text
+  updatedAt               DateTime  @updatedAt
+
+  order                   Order     @relation(fields: [orderId], references: [id])
+  user                    User      @relation(fields: [userId], references: [id])
+  refund                  Refund?
+
+  @@map("returns")
+}
+
+model Refund {
+  id                Int       @id @default(autoincrement())
+  orderId           Int       @unique
+  returnId          Int?      @unique // Null if refund triggered by cancellation
+  paymentId         Int?
+  originalAmount    Decimal   @db.Decimal(10, 2)
+  refundAmount      Decimal   @db.Decimal(10, 2)
+  method            RefundMethod @default(GATEWAY) // GATEWAY (Paytm) or BANK_TRANSFER (COD)
+  status            RefundStatus @default(PENDING) // PENDING, PROCESSING, COMPLETED, FAILED
+  
+  // Paytm Refund Fields
+  paytm_refund_id   String?   @unique
+  paytm_status      String?   // From Paytm refund API
+  paytm_response    Json?
+  
+  // Bank Transfer Fields (for COD)
+  bank_account      Json?     // { account_number, ifsc, name }
+  settlement_date   DateTime?
+  settlement_reference String?
+  
+  // Retry Logic
+  retry_count       Int       @default(0)
+  last_retry_at     DateTime?
+  
+  // Audit
+  notes             String?   @db.Text
+  initiatedAt       DateTime  @default(now())
+  completedAt       DateTime?
+  failedAt          DateTime?
+  updatedAt         DateTime  @updatedAt
+
+  order             Order     @relation(fields: [orderId], references: [id])
+  return            Return?   @relation(fields: [returnId], references: [id])
+
+  @@map("refunds")
+}
+
+model ReconciliationAlert {
+  id            Int       @id @default(autoincrement())
+  orderId       Int
+  alert_type    String    // AMOUNT_MISMATCH, PAYMENT_NOT_RECEIVED, DUPLICATE_PAYMENT, etc.
+  expected_amount Decimal  @db.Decimal(10, 2)
+  actual_amount Decimal?   @db.Decimal(10, 2)
+  difference    Decimal?   @db.Decimal(10, 2)
+  status        String    @default("OPEN") // OPEN, RESOLVED, ESCALATED
+  reference_id  String?
+  resolution    String?
+  resolved_amount Decimal? @db.Decimal(10, 2)
+  resolved_at   DateTime?
+  notes         String?   @db.Text
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  order         Order     @relation(fields: [orderId], references: [id])
+
+  @@map("reconciliation_alerts")
+}
+
+// ==============================
+// 10. ENUMS
 // ==============================
 
 enum ProductStatus {
@@ -334,28 +542,49 @@ enum ProductStatus {
 }
 
 enum OrderStatus {
-  PENDING_PAYMENT
-  PAYMENT_VERIFICATION_PENDING // For QR
-  VERIFIED
-  PACKED
-  SHIPPED
-  OUT_FOR_DELIVERY
-  DELIVERED
-  CANCELLED
-  RETURNED
+  CREATED            // Order placed, awaiting payment
+  PAYMENT_PENDING    // Payment gateway initiated
+  PAYMENT_FAILED     // Payment failed/declined
+  PAID               // Payment confirmed (or COD after OTP verification)
+  READY_TO_PACK      // Order ready for warehouse to pack
+  PACKED             // Order packed, ready for courier pickup
+  CANCELLED          // Order cancelled, no longer valid
 }
 
 enum PaymentMethod {
   COD
-  QR_UPI
+  PAYTM
 }
 
 enum PaymentStatus {
-  PENDING
-  VERIFICATION_REQUIRED
-  COMPLETED
-  FAILED
-  REFUNDED
+  PENDING    // Awaiting payment initiation
+  COMPLETED  // Payment confirmed
+  FAILED     // Payment failed/declined
+  REFUNDED   // Payment refunded
+}
+
+enum ReservationStatus {
+  ACTIVE                  // Stock is currently reserved
+  EXPIRED                 // Hold expired, stock released
+  RELEASED                // Manually released
+  FINALIZED               // Converted to permanent inventory deduction
+}
+
+enum ShipmentStatus {
+  CREATED                 // Shipment record created
+  MANIFESTED              // Added to courier manifest
+  PICKED_UP               // Courier picked up
+  IN_TRANSIT              // In transit
+  OUT_FOR_DELIVERY        // Out for delivery
+  DELIVERED               // Delivered
+  FAILED                  // Delivery failed
+  RETURN_INITIATED        // Return flow started
+}
+
+enum RemittanceStatus {
+  PENDING                 // Awaiting settlement from courier
+  SETTLED                 // Amount credited to account
+  VERIFIED                // Verified against bank statement
 }
 
 enum TicketStatus {
@@ -363,4 +592,26 @@ enum TicketStatus {
   IN_PROGRESS
   RESOLVED
   CLOSED
+}
+
+enum ReturnStatus {
+  REQUESTED                // Customer requested return
+  APPROVED                 // Admin approved the return
+  REJECTED                 // Admin rejected the return
+  PICKUP_SCHEDULED         // Return pickup scheduled with courier
+  IN_TRANSIT               // Return item in transit back to warehouse
+  RECEIVED                 // Return item received at warehouse
+  RETURNED                 // Return process completed
+}
+
+enum RefundMethod {
+  GATEWAY                  // Refund via payment gateway (Paytm)
+  BANK_TRANSFER            // Direct bank transfer (for COD)
+}
+
+enum RefundStatus {
+  PENDING                  // Refund initiated, awaiting processing
+  PROCESSING               // Refund being processed
+  COMPLETED                // Refund successfully completed
+  FAILED                   // Refund failed
 }
