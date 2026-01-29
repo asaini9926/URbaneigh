@@ -1,10 +1,16 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import type { RootState } from "../store/store";
 import { clearCart } from "../store/cartSlice";
 import api from "../api/axios";
 import { useNavigate } from "react-router-dom";
-import { QrCode, Truck, CreditCard, ShoppingBag } from "lucide-react";
+import { Truck, CreditCard, ShoppingBag, Loader } from "lucide-react";
+
+declare global {
+  interface Window {
+    Paytm: any;
+  }
+}
 
 const Checkout = () => {
   const { items, totalAmount } = useSelector((state: RootState) => state.cart);
@@ -23,6 +29,17 @@ const Checkout = () => {
     phone: "",
   });
 
+  // Load Paytm script on component mount
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://securegw.paytm.in/merchantpgp/gpay.js";
+    script.async = true;
+    document.body.appendChild(script);
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
+
   const handleApplyCoupon = async () => {
     if (!couponCode) return;
     try {
@@ -40,8 +57,7 @@ const Checkout = () => {
     }
   };
 
-  const [paymentMethod, setPaymentMethod] = useState<"COD" | "QR_UPI">("COD");
-  const [transactionId, setTransactionId] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<"COD" | "PAYTM">("COD");
   const [loading, setLoading] = useState(false);
 
   // Redirect if empty cart
@@ -53,7 +69,79 @@ const Checkout = () => {
   const shipping = totalAmount > 999 ? 0 : 99;
   const finalTotal = totalAmount + shipping - discount;
 
-  const handlePlaceOrder = async (e: React.FormEvent) => {
+  const handlePayWithPaytm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      // Step 1: Create order and get Paytm token from backend
+      const orderData = {
+        items: items.map((i) => ({ id: i.id, quantity: i.quantity })),
+        shippingAddress: formData,
+        paymentMethod: "PAYTM",
+        totalAmount: finalTotal,
+      };
+
+      const response = await api.post("/payments/initiate", orderData);
+      const { txnToken, orderId, orderNumber } = response.data;
+
+      // Step 2: Initialize Paytm Checkout
+      if (window.Paytm && window.Paytm.CheckoutJS) {
+        const config = {
+          root: "",
+          flow: "DEFAULT",
+          data: {
+            orderId: orderId,
+            token: txnToken,
+            tokenType: "TXN_TOKEN",
+            amount: String(finalTotal),
+          },
+          handler: {
+            notifyMerchant: async function (eventName: string, data: any) {
+              if (eventName === "APP_INITIALIZED") {
+                console.log("Paytm app initialized");
+              } else if (eventName === "TRANSACTION_STATUS") {
+                // Verify payment on server
+                try {
+                  const verifyRes = await api.post("/payments/verify", {
+                    orderId,
+                    txnToken,
+                    response: data,
+                  });
+
+                  if (verifyRes.data.status === "success") {
+                    alert(`Order Placed! ID: ${orderNumber}`);
+                    dispatch(clearCart());
+                    navigate(`/profile`);
+                  } else {
+                    alert("Payment verification failed. Order cancelled.");
+                    navigate("/cart");
+                  }
+                } catch (err) {
+                  console.error("Verification error:", err);
+                  alert("Error verifying payment. Please contact support.");
+                  navigate("/cart");
+                }
+              }
+            },
+          },
+        };
+
+        window.Paytm.CheckoutJS.onLoad(function executeAfterLoad() {
+          window.Paytm.CheckoutJS.invoke(config);
+        });
+      } else {
+        alert("Paytm SDK not loaded. Please refresh the page.");
+        setLoading(false);
+      }
+    } catch (error: any) {
+      console.error("Payment initiation error:", error);
+      alert(error.response?.data?.error || "Failed to initiate payment");
+      setLoading(false);
+    }
+  };
+
+  const handlePlaceOrderCOD = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
@@ -61,21 +149,28 @@ const Checkout = () => {
       const orderData = {
         items: items.map((i) => ({ id: i.id, quantity: i.quantity })),
         shippingAddress: formData,
-        paymentMethod,
-        transactionId: paymentMethod === "QR_UPI" ? transactionId : null,
+        paymentMethod: "COD",
       };
 
       const res = await api.post("/orders", orderData);
 
       if (res.status === 201) {
         alert(`Order Placed! ID: ${res.data.orderNumber}`);
-        dispatch(clearCart()); // Empty the cart
-        navigate("/"); // In future, navigate to /order-success
+        dispatch(clearCart());
+        navigate(`/profile`);
       }
     } catch (error: any) {
       alert(error.response?.data?.error || "Order Failed");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePlaceOrder = (e: React.FormEvent) => {
+    if (paymentMethod === "PAYTM") {
+      handlePayWithPaytm(e);
+    } else {
+      handlePlaceOrderCOD(e);
     }
   };
 
@@ -154,10 +249,11 @@ const Checkout = () => {
                 className="border p-2 rounded text-sm flex-1 uppercase"
                 value={couponCode}
                 onChange={(e) => setCouponCode(e.target.value)}
-                disabled={!!appliedCoupon} // Disable if already applied
+                disabled={!!appliedCoupon}
               />
               {appliedCoupon ? (
                 <button
+                  type="button"
                   onClick={() => {
                     setAppliedCoupon("");
                     setDiscount(0);
@@ -169,6 +265,7 @@ const Checkout = () => {
                 </button>
               ) : (
                 <button
+                  type="button"
                   onClick={handleApplyCoupon}
                   className="bg-gray-900 text-white px-4 rounded text-sm font-bold"
                 >
@@ -177,7 +274,6 @@ const Checkout = () => {
               )}
             </div>
 
-            {/* Display Discount in Summary List */}
             {discount > 0 && (
               <div className="flex justify-between text-green-600 font-medium">
                 <span>Discount ({appliedCoupon})</span>
@@ -213,10 +309,10 @@ const Checkout = () => {
                   </span>
                 </label>
 
-                {/* QR Option */}
+                {/* Paytm Option */}
                 <label
                   className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all ${
-                    paymentMethod === "QR_UPI"
+                    paymentMethod === "PAYTM"
                       ? "border-black bg-gray-50"
                       : "border-gray-200"
                   }`}
@@ -225,35 +321,15 @@ const Checkout = () => {
                     type="radio"
                     name="payment"
                     className="w-5 h-5 accent-black"
-                    checked={paymentMethod === "QR_UPI"}
-                    onChange={() => setPaymentMethod("QR_UPI")}
+                    checked={paymentMethod === "PAYTM"}
+                    onChange={() => setPaymentMethod("PAYTM")}
                   />
-                  <span className="ml-3 font-medium">Pay via QR / UPI</span>
+                  <span className="ml-3 font-medium">Pay with Paytm</span>
                 </label>
 
-                {/* QR Display & Input */}
-                {paymentMethod === "QR_UPI" && (
-                  <div className="mt-4 p-4 bg-gray-100 rounded-lg text-center">
-                    <p className="text-sm text-gray-600 mb-2">
-                      Scan to Pay <strong>₹{finalTotal}</strong>
-                    </p>
-                    <div className="bg-white p-2 inline-block rounded-md mb-3">
-                      <QrCode size={120} /> {/* Placeholder QR */}
-                    </div>
-                    <p className="text-xs text-gray-500 mb-3">
-                      Urbaniegh Business UPI
-                    </p>
-
-                    <input
-                      required={paymentMethod === "QR_UPI"}
-                      placeholder="Enter Transaction ID (UTR)"
-                      className="w-full border p-2 rounded-md text-sm"
-                      value={transactionId}
-                      onChange={(e) => setTransactionId(e.target.value)}
-                    />
-                    <p className="text-xs text-gray-500 mt-1 text-left">
-                      * Admin will verify this ID before shipping.
-                    </p>
+                {paymentMethod === "PAYTM" && (
+                  <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+                    ✓ Secure payment via Paytm. You'll be redirected to Paytm's payment gateway.
                   </div>
                 )}
               </div>
@@ -296,6 +372,12 @@ const Checkout = () => {
                 <span>Shipping</span>
                 <span>{shipping === 0 ? "Free" : `₹${shipping}`}</span>
               </div>
+              {discount > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Discount</span>
+                  <span>-₹{discount}</span>
+                </div>
+              )}
               <div className="flex justify-between text-lg font-bold border-t pt-2 mt-2">
                 <span>Total</span>
                 <span>₹{finalTotal}</span>
@@ -303,10 +385,18 @@ const Checkout = () => {
             </div>
 
             <button
+              type="submit"
               disabled={loading}
-              className="w-full mt-6 bg-black text-white h-12 rounded-lg font-bold hover:bg-gray-800 transition-colors disabled:opacity-70"
+              className="w-full mt-6 bg-black text-white h-12 rounded-lg font-bold hover:bg-gray-800 transition-colors disabled:opacity-70 flex items-center justify-center gap-2"
             >
-              {loading ? "Processing..." : `Place Order (₹${finalTotal})`}
+              {loading ? (
+                <>
+                  <Loader className="w-4 h-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                `Place Order (₹${finalTotal})`
+              )}
             </button>
           </div>
         </form>

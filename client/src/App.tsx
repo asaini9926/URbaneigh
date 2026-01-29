@@ -31,6 +31,14 @@ import RefundPolicy from "./pages/legal/RefundPolicy";
 import ShippingPolicy from "./pages/legal/ShippingPolicy";
 import TermsPolicy from "./pages/legal/TermsPolicy";
 import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
+import OrderHistory from "./pages/OrderHistory";
+import OrderDetails from "./pages/OrderDetails";
+import ReturnRequest from "./pages/ReturnRequest";
+import ReturnTracking from "./pages/ReturnTracking";
+import AdminReturns from "./pages/admin/AdminReturns";
+import AdminReconciliation from "./pages/admin/AdminReconciliation";
+import NotificationCenter from "./pages/NotificationCenter";
+import AnalyticsDashboard from "./pages/admin/AnalyticsDashboard";
 
 // Separate component to handle conditional Layout (Navbar/Footer)
 const ContentWrapper = () => {
@@ -98,6 +106,11 @@ const ContentWrapper = () => {
           <Route element={<RequireAuth />}>
             <Route path="/checkout" element={<Checkout />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/notifications" element={<NotificationCenter />} />
+            <Route path="/order-history" element={<OrderHistory />} />
+            <Route path="/order/:orderId" element={<OrderDetails />} />
+            <Route path="/return/:orderId" element={<ReturnRequest />} />
+            <Route path="/return-tracking/:returnId" element={<ReturnTracking />} />
 
             {/* Admin Routes (Layout handled by AdminLayout) */}
             <Route path="/admin" element={<AdminLayout />}>
@@ -112,6 +125,9 @@ const ContentWrapper = () => {
               <Route path="brands" element={<AdminBrands />} />
               <Route path="coupons" element={<AdminCoupons />} />
               <Route path="posters" element={<AdminPosters />} />
+              <Route path="returns" element={<AdminReturns />} />
+              <Route path="reconciliation" element={<AdminReconciliation />} />
+              <Route path="analytics" element={<AnalyticsDashboard />} />
             </Route>
           </Route>
         </Routes>

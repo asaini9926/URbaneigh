@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ShoppingBag, Package, Users, LogOut, Ticket, Megaphone } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Package, Users, LogOut, Ticket, Megaphone, BarChart3 } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { logout } from '../store/authSlice';
 import { ShieldAlert } from 'lucide-react'; // Add Icon
@@ -22,7 +22,9 @@ const AdminLayout = () => {
     { icon: Tags, label: 'Brands', path: '/admin/brands' },
     { icon: Ticket, label: 'Coupons', path: '/admin/coupons' },
     { icon: Megaphone, label: 'Banners', path: '/admin/posters' },
-    
+    { icon: Ticket, label: 'Returns', path: '/admin/returns' },
+    { icon: ShoppingBag, label: 'COD Reconciliation', path: '/admin/reconciliation' },
+    { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
   ];
 
   if (isSuperAdmin) {

@@ -1,13 +1,27 @@
 // server/controllers/orderController.js
 const { PrismaClient } = require('@prisma/client');
+const crypto = require('crypto');
+const { validateTransition, canBeCancelled } = require('../utils/orderTransitionGuard');
 const prisma = new PrismaClient();
 
-// Create New Order
+// Helper: Generate idempotency key
+function generateIdempotencyKey(userId, items) {
+  const itemStr = items.map((i) => `${i.id}:${i.quantity}`).join('|');
+  const hash = crypto.createHash('md5').update(`${userId}:${itemStr}:${Date.now()}`).digest('hex');
+  return hash;
+}
+
+// Create New Order (COD only - Paytm orders are created in paymentController)
 exports.createOrder = async (req, res) => {
     try {
         // 1. Get Data from Frontend
-        const { items, shippingAddress, paymentMethod, transactionId } = req.body;
+        const { items, shippingAddress, paymentMethod } = req.body;
         const userId = req.user.id; // From the Token
+
+        // Only allow COD through this endpoint now
+        if (paymentMethod !== 'COD') {
+            return res.status(400).json({ error: 'Use /payments/initiate for Paytm payments' });
+        }
 
         // 2. Calculate Total (Server-side validation is safer)
         // We fetch prices from DB to ensure user didn't fake the price
@@ -18,15 +32,15 @@ exports.createOrder = async (req, res) => {
             // item has { id: variantId, quantity }
             const variant = await prisma.productVariant.findUnique({
                 where: { id: item.id },
-                include: { product: true } // to get title if needed
+                include: { product: true, inventory: true }
             });
 
             if (!variant) throw new Error(`Product variant ${item.id} not found`);
 
-            // Check Stock
-            const inventory = await prisma.inventory.findUnique({ where: { variantId: item.id } });
-            if (inventory.quantity < item.quantity) {
-                throw new Error(`Insufficient stock for item ${variant.sku}`);
+            // Check Available Stock (not reserved)
+            const availableQty = variant.inventory.quantity - variant.inventory.reserved_qty;
+            if (availableQty < item.quantity) {
+                throw new Error(`Insufficient stock for item ${variant.sku}. Available: ${availableQty}`);
             }
 
             const price = Number(variant.price);
@@ -43,58 +57,100 @@ exports.createOrder = async (req, res) => {
         const shippingCost = totalAmount > 999 ? 0 : 99;
         const finalTotal = totalAmount + shippingCost;
 
-        // 3. Database Transaction (Create Order + Items + Payment + Update Stock)
+        const idempotencyKey = generateIdempotencyKey(userId, items);
+
+        // 3. Database Transaction (Create Order + Items + Payment + Reservations)
         const result = await prisma.$transaction(async (prisma) => {
             
             // A. Create Order
             const order = await prisma.order.create({
                 data: {
                     userId,
-                    orderNumber: `ORD-${Date.now()}`, // Simple unique ID
+                    orderNumber: `ORD-${Date.now()}`,
                     totalAmount: finalTotal,
-                    status: paymentMethod === 'QR_UPI' ? 'PAYMENT_VERIFICATION_PENDING' : 'PENDING_PAYMENT',
-                    paymentMethod,
-                    shippingAddress: shippingAddress, // JSON object
+                    status: 'CREATED',  // COD orders start as CREATED, move to PAID immediately
+                    paymentMethod: 'COD',
+                    shippingAddress: shippingAddress,
+                    idempotencyKey: idempotencyKey,
                     items: {
                         create: orderItemsData
                     }
                 }
             });
 
-            // B. Create Payment Record
-            if (paymentMethod === 'QR_UPI') {
-                await prisma.payment.create({
-                    data: {
-                        orderId: order.id,
-                        method: 'QR_UPI',
-                        amount: finalTotal,
-                        status: 'VERIFICATION_REQUIRED',
-                        qrReference: transactionId // The UTR number user enters
-                    }
-                });
-            } else {
-                 await prisma.payment.create({
-                    data: {
-                        orderId: order.id,
-                        method: 'COD',
-                        amount: finalTotal,
-                        status: 'PENDING'
-                    }
-                });
-            }
+            // B. Create Payment Record for COD
+            await prisma.payment.create({
+                data: {
+                    orderId: order.id,
+                    method: 'COD',
+                    amount: finalTotal,
+                    status: 'PENDING'  // Will be marked COMPLETED on delivery
+                }
+            });
 
-            // C. Reduce Stock
+            // C. Create Reservations (hold for potential cancellation window)
             for (const item of items) {
+                await prisma.reservation.create({
+                    data: {
+                        orderId: order.id,
+                        variantId: item.id,
+                        quantity: item.quantity,
+                        expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30-minute hold
+                        status: 'ACTIVE'
+                    }
+                });
+
+                // Update inventory reserved quantity
                 await prisma.inventory.update({
                     where: { variantId: item.id },
-                    data: { quantity: { decrement: item.quantity } }
+                    data: { reserved_qty: { increment: item.quantity } }
                 });
             }
 
-            return order;
+            // For COD, immediately move to PAID (since we accept payment on delivery)
+            const paidOrder = await prisma.order.update({
+                where: { id: order.id },
+                data: { status: 'PAID' }
+            });
+
+            // Finalize reservations (convert to permanent inventory deduction)
+            const reservations = await prisma.reservation.findMany({
+                where: { orderId: order.id, status: 'ACTIVE' }
+            });
+
+            for (const reservation of reservations) {
+                await prisma.reservation.update({
+                    where: { id: reservation.id },
+                    data: { status: 'FINALIZED' }
+                });
+
+                // Permanently decrement inventory
+                await prisma.inventory.update({
+                    where: { variantId: reservation.variantId },
+                    data: {
+                        quantity: { decrement: reservation.quantity },
+                        reserved_qty: { decrement: reservation.quantity }
+                    }
+                });
+            }
+
+            // Update payment status
+            await prisma.payment.update({
+                where: { orderId: order.id },
+                data: {
+                    status: 'COMPLETED',
+                    verifiedAt: new Date()
+                }
+            });
+
+            return paidOrder;
         });
 
-        res.status(201).json({ message: 'Order placed successfully', orderId: result.id, orderNumber: result.orderNumber });
+        res.status(201).json({ 
+            message: 'Order placed successfully. Your order will be delivered with Cash on Delivery option.', 
+            orderId: result.id, 
+            orderNumber: result.orderNumber 
+        });
 
     } catch (error) {
         console.error(error);
@@ -109,7 +165,8 @@ exports.getMyOrders = async (req, res) => {
             where: { userId: req.user.id },
             include: { 
                 items: { include: { variant: { include: { product: true } } } },
-                payment: true
+                payment: true,
+                shipments: true
             },
             orderBy: { createdAt: 'desc' }
         });
@@ -122,11 +179,26 @@ exports.getMyOrders = async (req, res) => {
 // [ADMIN] Get All Orders (with filters later if needed)
 exports.getAllOrders = async (req, res) => {
     try {
+        const { status, paymentMethod, startDate, endDate } = req.query;
+
+        let whereClause = {};
+
+        if (status) whereClause.status = status;
+        if (paymentMethod) whereClause.paymentMethod = paymentMethod;
+        
+        if (startDate || endDate) {
+            whereClause.createdAt = {};
+            if (startDate) whereClause.createdAt.gte = new Date(startDate);
+            if (endDate) whereClause.createdAt.lte = new Date(endDate);
+        }
+
         const orders = await prisma.order.findMany({
+            where: whereClause,
             include: {
-                user: { select: { name: true, email: true } }, // Get customer name
-                payment: true, // Get payment details (transaction ID)
-                items: { include: { variant: true } }
+                user: { select: { id: true, name: true, email: true, phone: true } },
+                payment: true,
+                items: { include: { variant: { include: { product: true } } } },
+                shipments: true
             },
             orderBy: { createdAt: 'desc' }
         });
@@ -136,34 +208,40 @@ exports.getAllOrders = async (req, res) => {
     }
 };
 
-// [ADMIN] Update Order Status (The Verification Logic)
+// [ADMIN] Update Order Status
 exports.updateOrderStatus = async (req, res) => {
     try {
         const { id } = req.params;
-        const { status, paymentStatus } = req.body;
+        const { status, notes } = req.body;
 
-        const updateData = { status };
-
-        // If admin marks order as VERIFIED, we automatically mark payment as COMPLETED
-        if (status === 'VERIFIED' || paymentStatus === 'COMPLETED') {
-             // We also update the Payment record linked to this order
-             await prisma.payment.update({
-                where: { orderId: Number(id) },
-                data: { 
-                    status: 'COMPLETED',
-                    verifiedBy: req.user.id,
-                    verifiedAt: new Date()
-                }
-             });
-        }
-
-        const order = await prisma.order.update({
-            where: { id: Number(id) },
-            data: updateData,
-            include: { payment: true }
+        // Get current order
+        const order = await prisma.order.findUnique({
+            where: { id: Number(id) }
         });
 
-        res.json({ message: 'Order status updated', order });
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        // Validate status transition using guard
+        try {
+            validateTransition(order.status, status);
+        } catch (error) {
+            return res.status(400).json({ error: error.message });
+        }
+
+        const updateData = { status };
+        if (notes) {
+            updateData.notes = notes;
+        }
+
+        const updatedOrder = await prisma.order.update({
+            where: { id: Number(id) },
+            data: updateData,
+            include: { payment: true, shipments: true }
+        });
+
+        res.json({ message: 'Order status updated', order: updatedOrder });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
