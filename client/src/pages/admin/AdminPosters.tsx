@@ -15,7 +15,7 @@ const AdminPosters = () => {
     setPosters(res.data);
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, position: string, link: string) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -32,7 +32,8 @@ const AdminPosters = () => {
       // 2. Create Poster Record
       await api.post("/marketing/posters", {
         imageUrl: uploadRes.data.url,
-        link: "/shop", // Default link
+        link: link,
+        position: position,
       });
 
       fetchPosters();
@@ -40,6 +41,8 @@ const AdminPosters = () => {
       alert("Failed to upload poster");
     } finally {
       setUploading(false);
+      // Reset file input if needed, though hidden
+      e.target.value = '';
     }
   };
 
@@ -51,19 +54,42 @@ const AdminPosters = () => {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <h1 className="text-2xl font-bold text-gray-900">Home Banners</h1>
-        <label className="bg-black text-white px-4 py-2 rounded flex items-center gap-2 cursor-pointer hover:bg-gray-800">
-          <Upload size={20} />{" "}
-          {uploading ? "Uploading..." : "Upload New Banner"}
-          <input
-            type="file"
-            hidden
-            accept="image/*"
-            onChange={handleUpload}
-            disabled={uploading}
-          />
-        </label>
+        
+        {/* Upload Form */}
+        <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto items-end">
+             <select 
+                id="position-select"
+                className="border border-gray-300 rounded px-3 py-2 text-sm"
+             >
+                <option value="home_main">Home Main</option>
+                <option value="shop_top">Shop Top</option>
+             </select>
+
+             <input 
+                id="link-input"
+                type="text" 
+                placeholder="/shop" 
+                className="border border-gray-300 rounded px-3 py-2 text-sm w-full md:w-48"
+             />
+
+            <label className="bg-black text-white px-4 py-2 rounded flex items-center gap-2 cursor-pointer hover:bg-gray-800 whitespace-nowrap">
+            <Upload size={20} />{" "}
+            {uploading ? "Uploading..." : "Upload New Banner"}
+            <input
+                type="file"
+                hidden
+                accept="image/*"
+                onChange={(e) => {
+                    const pos = (document.getElementById('position-select') as HTMLSelectElement).value;
+                    const link = (document.getElementById('link-input') as HTMLInputElement).value || "/shop";
+                    handleUpload(e, pos, link);
+                }}
+                disabled={uploading}
+            />
+            </label>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6">

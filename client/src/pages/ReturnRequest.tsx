@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
+
 
 interface OrderItem {
   variantId: number;
@@ -130,7 +130,7 @@ export default function ReturnRequest() {
             <p className="mt-4 text-gray-600">Loading order...</p>
           </div>
         </div>
-        <Footer />
+
       </div>
     );
   }
@@ -152,7 +152,7 @@ export default function ReturnRequest() {
             </button>
           </div>
         </div>
-        <Footer />
+
       </div>
     );
   }
@@ -305,7 +305,7 @@ export default function ReturnRequest() {
           </div>
         </div>
       </div>
-      <Footer />
+
     </div>
   );
 }

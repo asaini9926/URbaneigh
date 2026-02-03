@@ -21,6 +21,7 @@ const refundRoutes = require('./routes/refundRoutes');
 const reconciliationRoutes = require('./routes/reconciliationRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const subscriberRoutes = require('./routes/subscriberRoutes');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -62,6 +63,7 @@ app.use('/api/refunds', refundRoutes);
 app.use('/api/reconciliation', reconciliationRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/subscribers', subscriberRoutes);
 
 // Database Connection Check
 async function main() {

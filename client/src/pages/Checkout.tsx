@@ -3,7 +3,7 @@ import { useSelector, useDispatch } from "react-redux";
 import type { RootState } from "../store/store";
 import { clearCart } from "../store/cartSlice";
 import api from "../api/axios";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Truck, CreditCard, ShoppingBag, Loader } from "lucide-react";
 
 declare global {
@@ -13,10 +13,20 @@ declare global {
 }
 
 const Checkout = () => {
-  const { items, totalAmount } = useSelector((state: RootState) => state.cart);
+  const { items: cartItems, totalAmount: cartTotal } = useSelector((state: RootState) => state.cart);
   const { user } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check for Direct Buy Item
+  const directBuyItem = location.state?.directBuyItem;
+
+  // Determine source of items
+  const items = directBuyItem ? [directBuyItem] : cartItems;
+  const totalAmount = directBuyItem ? (directBuyItem.price * directBuyItem.quantity) : cartTotal;
+  const isDirectBuy = !!directBuyItem;
+
   const [couponCode, setCouponCode] = useState("");
   const [discount, setDiscount] = useState(0);
   const [appliedCoupon, setAppliedCoupon] = useState("");
@@ -32,7 +42,8 @@ const Checkout = () => {
   // Load Paytm script on component mount
   useEffect(() => {
     const script = document.createElement("script");
-    script.src = "https://securegw.paytm.in/merchantpgp/gpay.js";
+    // Use Staging for development (change to securegw.paytm.in for production)
+    script.src = "https://securegw-stage.paytm.in/merchantpgp/gpay.js";
     script.async = true;
     document.body.appendChild(script);
     return () => {
@@ -60,11 +71,14 @@ const Checkout = () => {
   const [paymentMethod, setPaymentMethod] = useState<"COD" | "PAYTM">("COD");
   const [loading, setLoading] = useState(false);
 
-  // Redirect if empty cart
-  if (items.length === 0) {
-    navigate("/cart");
-    return null;
-  }
+  // Redirect if empty items and not loading
+  useEffect(() => {
+    if (items.length === 0) {
+      navigate("/cart");
+    }
+  }, [items, navigate]);
+
+  if (items.length === 0) return null;
 
   const shipping = totalAmount > 999 ? 0 : 99;
   const finalTotal = totalAmount + shipping - discount;
@@ -111,7 +125,9 @@ const Checkout = () => {
 
                   if (verifyRes.data.status === "success") {
                     alert(`Order Placed! ID: ${orderNumber}`);
-                    dispatch(clearCart());
+                    if (!isDirectBuy) {
+                      dispatch(clearCart());
+                    }
                     navigate(`/profile`);
                   } else {
                     alert("Payment verification failed. Order cancelled.");
@@ -156,7 +172,9 @@ const Checkout = () => {
 
       if (res.status === 201) {
         alert(`Order Placed! ID: ${res.data.orderNumber}`);
-        dispatch(clearCart());
+        if (!isDirectBuy) {
+          dispatch(clearCart());
+        }
         navigate(`/profile`);
       }
     } catch (error: any) {
@@ -177,7 +195,9 @@ const Checkout = () => {
   return (
     <div className="bg-gray-50 min-h-screen py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">
+          {isDirectBuy ? 'Checkout (Buy Now)' : 'Checkout'}
+        </h1>
 
         <form
           onSubmit={handlePlaceOrder}
@@ -291,11 +311,10 @@ const Checkout = () => {
               <div className="space-y-4">
                 {/* COD Option */}
                 <label
-                  className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all ${
-                    paymentMethod === "COD"
+                  className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all ${paymentMethod === "COD"
                       ? "border-black bg-gray-50"
                       : "border-gray-200"
-                  }`}
+                    }`}
                 >
                   <input
                     type="radio"
@@ -311,11 +330,10 @@ const Checkout = () => {
 
                 {/* Paytm Option */}
                 <label
-                  className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all ${
-                    paymentMethod === "PAYTM"
+                  className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all ${paymentMethod === "PAYTM"
                       ? "border-black bg-gray-50"
                       : "border-gray-200"
-                  }`}
+                    }`}
                 >
                   <input
                     type="radio"

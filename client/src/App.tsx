@@ -39,6 +39,10 @@ import AdminReturns from "./pages/admin/AdminReturns";
 import AdminReconciliation from "./pages/admin/AdminReconciliation";
 import NotificationCenter from "./pages/NotificationCenter";
 import AnalyticsDashboard from "./pages/admin/AnalyticsDashboard";
+import AdminVideos from "./pages/admin/AdminVideos";
+import AdminSubscribers from "./pages/admin/AdminSubscribers";
+import ScrollToTop from "./components/ScrollToTop";
+import AdminOrderDetails from "./pages/admin/AdminOrderDetails"; // Import AdminOrderDetails
 
 // Separate component to handle conditional Layout (Navbar/Footer)
 const ContentWrapper = () => {
@@ -64,41 +68,25 @@ const ContentWrapper = () => {
           <Route
             path="/refund-policy"
             element={
-              <>
-                <Navbar />
-                <RefundPolicy />
-                <Footer />
-              </>
+              <RefundPolicy />
             }
           />
           <Route
             path="/shipping-policy"
             element={
-              <>
-                <Navbar />
-                <ShippingPolicy />
-                <Footer />
-              </>
+              <ShippingPolicy />
             }
           />
           <Route
             path="/terms-conditions"
             element={
-              <>
-                <Navbar />
-                <TermsPolicy />
-                <Footer />
-              </>
+              <TermsPolicy />
             }
           />
           <Route
             path="/privacy-policy"
             element={
-              <>
-                <Navbar />
-                <PrivacyPolicy />
-                <Footer />
-              </>
+              <PrivacyPolicy />
             }
           />
 
@@ -116,6 +104,7 @@ const ContentWrapper = () => {
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<AdminDashboard />} />
               <Route path="orders" element={<AdminOrders />} />
+              <Route path="orders/:id" element={<AdminOrderDetails />} /> {/* New Route */}
               <Route path="products" element={<AdminProducts />} />
               <Route path="products/new" element={<AddProduct />} />
               <Route path="products/edit/:id" element={<EditProduct />} />
@@ -125,9 +114,11 @@ const ContentWrapper = () => {
               <Route path="brands" element={<AdminBrands />} />
               <Route path="coupons" element={<AdminCoupons />} />
               <Route path="posters" element={<AdminPosters />} />
+              <Route path="videos" element={<AdminVideos />} />
               <Route path="returns" element={<AdminReturns />} />
               <Route path="reconciliation" element={<AdminReconciliation />} />
               <Route path="analytics" element={<AnalyticsDashboard />} />
+              <Route path="subscribers" element={<AdminSubscribers />} />
             </Route>
           </Route>
         </Routes>
@@ -142,6 +133,7 @@ const ContentWrapper = () => {
 function App() {
   return (
     <Router>
+      <ScrollToTop />
       <div className="min-h-screen bg-white text-gray-900 font-sans">
         <ContentWrapper />
       </div>

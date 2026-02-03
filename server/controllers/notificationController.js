@@ -207,7 +207,9 @@ exports.sendRefundNotification = async (orderId) => {
 exports.getUserNotifications = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { page = 1, limit = 20 } = req.query;
+    let { page = 1, limit = 20 } = req.query;
+    page = parseInt(page) || 1;
+    limit = parseInt(limit) || 20;
     const skip = (page - 1) * limit;
 
     // For now, fetch from order and return logs

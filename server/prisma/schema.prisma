@@ -107,6 +107,7 @@ model Product {
   id          Int              @id @default(autoincrement())
   title       String
   description String           @db.Text
+  socialMediaDescription String? @db.Text
   categoryId  Int
   brandId     Int
   status      ProductStatus    @default(DRAFT)
@@ -116,6 +117,7 @@ model Product {
   category    Category         @relation(fields: [categoryId], references: [id])
   brand       Brand            @relation(fields: [brandId], references: [id])
   variants    ProductVariant[]
+  videos      ProductVideo[]
 
   @@fulltext([title]) // Enable Search
   @@map("products")
@@ -199,6 +201,7 @@ model Order {
   userId          Int
   totalAmount     Decimal        @db.Decimal(10, 2)
   status          OrderStatus    @default(CREATED)  // Payment readiness only (7 states)
+  fulfillmentStatus FulfillmentStatus @default(UNFULFILLED)
   paymentMethod   PaymentMethod
   shippingAddress Json           // Storing address snapshot to prevent history changes
   idempotencyKey  String         @unique // For idempotent order creation
@@ -242,7 +245,10 @@ model Payment {
   
   // Paytm Fields
   paytm_txn_id     String?       @unique
+  paytm_txn_token  String?       // Temporary token for JS Checkout
   paytm_status     String?
+  paytm_bank_txn_id String?      // Bank's internal Ref ID
+  paytm_payment_mode String?     // UPI/CC/DC/NB
   gateway_response Json?         // Full Paytm API response
   
   // COD Fields
@@ -303,6 +309,32 @@ model Poster {
   isActive   Boolean   @default(true)
   
   @@map("posters")
+}
+
+model ShoppableVideo {
+  id          Int      @id @default(autoincrement())
+  title       String
+  videoUrl    String
+  thumbnailUrl String?
+  socialMediaDescription String? @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  products    ProductVideo[]
+
+  @@map("shoppable_videos")
+}
+
+model ProductVideo {
+  videoId     Int
+  productId   Int
+  
+  video       ShoppableVideo @relation(fields: [videoId], references: [id])
+  product     Product        @relation(fields: [productId], references: [id])
+
+  @@id([videoId, productId])
+  @@map("product_videos")
 }
 
 model Ticket {
@@ -376,11 +408,19 @@ model Reservation {
 model Shipment {
   id               Int             @id @default(autoincrement())
   orderId          Int
-  courier_provider String          // "DELHIVERY", "FEDEX", etc.
-  waybill          String          @unique // AWB number from Delhivery
+  courier_provider String          // "DELHIVERY", "FEDEX", "SHIPROCKET", etc.
+  waybill          String?         @unique // AWB number (Now optional initially)
   status           ShipmentStatus  @default(CREATED)  // Delivery status (independent)
   
-  // Delhivery Details
+  // Shiprocket Details
+  shiprocket_order_id    Int?     // Shiprocket's internal Order ID
+  shiprocket_shipment_id Int?     // Shiprocket's internal Shipment ID
+  courier_name           String?  // Actual courier assigned (e.g., Ecom Express)
+  awb_code               String?  // AWB Number (Redundant but keeps schema consistent)
+  pickup_scheduled_date  DateTime?
+  label_url              String?  // URL to download shipping label
+  
+  // Delhivery Details (Legacy - Keep for compatibility if needed)
   delhivery_waybill String?
   delhivery_manifest_id String?
   delhivery_pickup_id String?
@@ -440,13 +480,18 @@ model Return {
   reason                  String    // e.g., "WRONG_ITEM", "DAMAGED", "NOT_AS_DESCRIBED"
   description             String?   @db.Text
   items                   Json      // Array of { variantId, quantity, reason }
+  proof_images            Json?     // Array of image URLs uploaded by user
   estimatedRefundAmount   Decimal   @db.Decimal(10, 2)
   approvedRefundAmount    Decimal?  @db.Decimal(10, 2) // Admin sets this after review
+  
+  // Shiprocket Return Details
+  shiprocket_return_order_id Int?
+  shiprocket_return_shipment_id Int?
   
   // Return Pickup Details
   pickupScheduledAt       DateTime?
   pickupCompletedAt       DateTime?
-  returnWaybill           String?   // Delhivery RTO waybill number
+  returnWaybill           String?   // Reverse AWB number
   returnStatus            String?   // SCHEDULED, PICKED, IN_TRANSIT, RECEIVED
   
   // Condition Assessment
@@ -489,7 +534,11 @@ model Refund {
   paytm_response    Json?
   
   // Bank Transfer Fields (for COD)
-  bank_account      Json?     // { account_number, ifsc, name }
+  bank_account      Json?     // { account_number, ifsc, name } (Deprecated in favor of granular fields below)
+  bank_account_no   String?   // Encrypted/Masked (For COD)
+  ifsc_code         String?   // For COD
+  beneficiary_name  String?   // For COD
+  
   settlement_date   DateTime?
   settlement_reference String?
   
@@ -548,7 +597,14 @@ enum OrderStatus {
   PAID               // Payment confirmed (or COD after OTP verification)
   READY_TO_PACK      // Order ready for warehouse to pack
   PACKED             // Order packed, ready for courier pickup
+  READY_TO_PICK      // Ready for courier
+  PICKED_UP          // Courier picked up
+  IN_TRANSIT         // On the way
+  OUT_FOR_DELIVERY   // Out for delivery
+  DELIVERED          // Delivered
   CANCELLED          // Order cancelled, no longer valid
+  RETURN_REQUESTED   // User requested return
+  RETURNED           // Returned successfully
 }
 
 enum PaymentMethod {
@@ -579,6 +635,13 @@ enum ShipmentStatus {
   DELIVERED               // Delivered
   FAILED                  // Delivery failed
   RETURN_INITIATED        // Return flow started
+}
+
+enum FulfillmentStatus {
+  UNFULFILLED
+  PARTIALLY_FULFILLED
+  FULFILLED
+  RETURNED
 }
 
 enum RemittanceStatus {
@@ -614,4 +677,13 @@ enum RefundStatus {
   PROCESSING               // Refund being processed
   COMPLETED                // Refund successfully completed
   FAILED                   // Refund failed
+}
+
+model Subscriber {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@map("subscribers")
 }

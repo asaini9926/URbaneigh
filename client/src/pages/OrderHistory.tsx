@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Navbar from '../components/Navbar';
-import Footer from '../components/Footer';
+
 
 interface OrderItem {
   variantId: number;
@@ -39,7 +39,7 @@ export default function OrderHistory() {
       const response = await axios.get('http://localhost:5000/api/orders/my-orders', {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setOrders(response.data.orders || []);
+      setOrders(Array.isArray(response.data) ? response.data : (response.data.orders || []));
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load orders');
     } finally {
@@ -166,7 +166,7 @@ export default function OrderHistory() {
           )}
         </div>
       </div>
-      <Footer />
+
     </div>
   );
 }
