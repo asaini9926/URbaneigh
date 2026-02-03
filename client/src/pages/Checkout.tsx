@@ -21,7 +21,7 @@ const Checkout = () => {
 
   // Check for Direct Buy Item
   const directBuyItem = location.state?.directBuyItem;
-  
+
   // Determine source of items
   const items = directBuyItem ? [directBuyItem] : cartItems;
   const totalAmount = directBuyItem ? (directBuyItem.price * directBuyItem.quantity) : cartTotal;
@@ -42,7 +42,8 @@ const Checkout = () => {
   // Load Paytm script on component mount
   useEffect(() => {
     const script = document.createElement("script");
-    script.src = "https://securegw.paytm.in/merchantpgp/gpay.js";
+    // Use Staging for development (change to securegw.paytm.in for production)
+    script.src = "https://securegw-stage.paytm.in/merchantpgp/gpay.js";
     script.async = true;
     document.body.appendChild(script);
     return () => {
@@ -72,9 +73,9 @@ const Checkout = () => {
 
   // Redirect if empty items and not loading
   useEffect(() => {
-      if (items.length === 0) {
-          navigate("/cart");
-      }
+    if (items.length === 0) {
+      navigate("/cart");
+    }
   }, [items, navigate]);
 
   if (items.length === 0) return null;
@@ -125,7 +126,7 @@ const Checkout = () => {
                   if (verifyRes.data.status === "success") {
                     alert(`Order Placed! ID: ${orderNumber}`);
                     if (!isDirectBuy) {
-                        dispatch(clearCart());
+                      dispatch(clearCart());
                     }
                     navigate(`/profile`);
                   } else {
@@ -172,7 +173,7 @@ const Checkout = () => {
       if (res.status === 201) {
         alert(`Order Placed! ID: ${res.data.orderNumber}`);
         if (!isDirectBuy) {
-            dispatch(clearCart());
+          dispatch(clearCart());
         }
         navigate(`/profile`);
       }
@@ -195,7 +196,7 @@ const Checkout = () => {
     <div className="bg-gray-50 min-h-screen py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">
-            {isDirectBuy ? 'Checkout (Buy Now)' : 'Checkout'}
+          {isDirectBuy ? 'Checkout (Buy Now)' : 'Checkout'}
         </h1>
 
         <form
@@ -310,11 +311,10 @@ const Checkout = () => {
               <div className="space-y-4">
                 {/* COD Option */}
                 <label
-                  className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all ${
-                    paymentMethod === "COD"
+                  className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all ${paymentMethod === "COD"
                       ? "border-black bg-gray-50"
                       : "border-gray-200"
-                  }`}
+                    }`}
                 >
                   <input
                     type="radio"
@@ -330,11 +330,10 @@ const Checkout = () => {
 
                 {/* Paytm Option */}
                 <label
-                  className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all ${
-                    paymentMethod === "PAYTM"
+                  className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all ${paymentMethod === "PAYTM"
                       ? "border-black bg-gray-50"
                       : "border-gray-200"
-                  }`}
+                    }`}
                 >
                   <input
                     type="radio"

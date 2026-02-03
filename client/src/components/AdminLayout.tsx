@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ShoppingBag, Package, Users, LogOut, Ticket, Megaphone, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Package, Users, LogOut, Ticket, Megaphone, BarChart3, Video } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { logout } from '../store/authSlice';
 import { ShieldAlert } from 'lucide-react'; // Add Icon
@@ -22,9 +22,11 @@ const AdminLayout = () => {
     { icon: Tags, label: 'Brands', path: '/admin/brands' },
     { icon: Ticket, label: 'Coupons', path: '/admin/coupons' },
     { icon: Megaphone, label: 'Banners', path: '/admin/posters' },
+    { icon: Video, label: 'Videos', path: '/admin/videos' },
     { icon: Ticket, label: 'Returns', path: '/admin/returns' },
     { icon: ShoppingBag, label: 'COD Reconciliation', path: '/admin/reconciliation' },
     { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
+    { icon: Users, label: 'Subscribers', path: '/admin/subscribers' },
   ];
 
   if (isSuperAdmin) {
@@ -36,28 +38,27 @@ const AdminLayout = () => {
       {/* Sidebar */}
       <aside className="w-64 bg-black text-white min-h-screen fixed left-0 top-0 hidden md:flex flex-col">
         <div className="p-6 border-b border-gray-800">
-            <h1 className="text-xl font-bold tracking-wider">URBANIEGH <span className="text-xs text-gray-400 block">ADMIN PANEL</span></h1>
+          <h1 className="text-xl font-bold tracking-wider">URBANIEGH <span className="text-xs text-gray-400 block">ADMIN PANEL</span></h1>
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
-            {menuItems.map((item) => (
-                <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-md transition-colors ${
-                        location.pathname === item.path ? 'bg-white text-black font-bold' : 'text-gray-400 hover:text-white hover:bg-gray-900'
-                    }`}
-                >
-                    <item.icon size={20} />
-                    {item.label}
-                </Link>
-            ))}
+          {menuItems.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`flex items-center gap-3 px-4 py-3 rounded-md transition-colors ${location.pathname === item.path ? 'bg-white text-black font-bold' : 'text-gray-400 hover:text-white hover:bg-gray-900'
+                }`}
+            >
+              <item.icon size={20} />
+              {item.label}
+            </Link>
+          ))}
         </nav>
 
         <div className="p-4 border-t border-gray-800">
-            <button onClick={() => dispatch(logout())} className="flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-gray-900 w-full rounded-md transition-colors">
-                <LogOut size={20} /> Logout
-            </button>
+          <button onClick={() => dispatch(logout())} className="flex items-center gap-3 px-4 py-3 text-red-400 hover:bg-gray-900 w-full rounded-md transition-colors">
+            <LogOut size={20} /> Logout
+          </button>
         </div>
       </aside>
 

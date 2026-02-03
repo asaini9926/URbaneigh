@@ -4,7 +4,7 @@ import axios from 'axios';
 import Navbar from '../components/Navbar';
 
 interface Return {
-  return_id: number;
+  id: number;
   order_id: number;
   status: string;
   reason: string;
@@ -144,20 +144,18 @@ export default function ReturnTracking() {
                 ].map((item, idx) => (
                   <div key={idx} className="flex flex-col items-center flex-1">
                     <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold mb-2 ${
-                        currentStep >= item.step
+                      className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold mb-2 ${currentStep >= item.step
                           ? 'bg-green-500 text-white'
                           : 'bg-gray-200 text-gray-600'
-                      }`}
+                        }`}
                     >
                       {currentStep >= item.step ? '✓' : item.step + 1}
                     </div>
                     <p className="text-xs text-gray-600 text-center">{item.label}</p>
                     {idx < 5 && (
                       <div
-                        className={`h-1 w-full mt-2 ${
-                          currentStep > item.step ? 'bg-green-500' : 'bg-gray-200'
-                        }`}
+                        className={`h-1 w-full mt-2 ${currentStep > item.step ? 'bg-green-500' : 'bg-gray-200'
+                          }`}
                       ></div>
                     )}
                   </div>

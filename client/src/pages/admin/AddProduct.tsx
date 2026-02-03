@@ -6,9 +6,10 @@ import {
   Trash,
   ArrowLeft,
   Upload,
-  Image as ImageIcon,
   X,
 } from "lucide-react";
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 
 const AddProduct = () => {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ const AddProduct = () => {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [selectedParentId, setSelectedParentId] = useState("");
   const [brandId, setBrandId] = useState("");
 
   // CHANGED: 'images' is now an array of strings
@@ -167,29 +169,63 @@ const AddProduct = () => {
               <label className="block text-sm font-medium mb-1">
                 Description
               </label>
-              <textarea
-                required
-                rows={3}
-                className="w-full border p-2 rounded"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
+              <div className="h-64 mb-12">
+                <ReactQuill
+                  theme="snow"
+                  value={description}
+                  onChange={setDescription}
+                  className="h-full"
+                />
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Category</label>
               <select
                 required
                 className="w-full border p-2 rounded"
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
+                value={selectedParentId}
+                onChange={(e) => {
+                  const pid = e.target.value;
+                  setSelectedParentId(pid);
+                  setCategoryId(""); // Reset actual category until subcat selected (or if no subcats)
+                  // If no children, set categoryId to pid immediately? 
+                  // Better to let user pick.
+                  const parent = categories.find((c: any) => String(c.id) === pid);
+                  if (parent && (!parent.children || parent.children.length === 0)) {
+                    setCategoryId(pid);
+                  }
+                }}
               >
-                <option value="">Select Category</option>
+                <option value="">Select Main Category</option>
                 {categories.map((c: any) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
                 ))}
               </select>
+
+              {/* Subcategory Dropdown */}
+              {selectedParentId && categories.find((c: any) => String(c.id) === selectedParentId)?.children?.length > 0 && (
+                <div className="mt-2">
+                  <label className="block text-xs font-bold text-gray-500 mb-1 ml-1">Subcategory</label>
+                  <select
+                    required
+                    className="w-full border p-2 rounded bg-gray-50 from-gray-50"
+                    value={categoryId}
+                    onChange={(e) => setCategoryId(e.target.value)}
+                  >
+                    <option value="">Select Subcategory</option>
+                    {categories
+                      .find((c: any) => String(c.id) === selectedParentId)
+                      ?.children.map((sub: any) => (
+                        <option key={sub.id} value={sub.id}>
+                          {sub.name}
+                        </option>
+                      ))
+                    }
+                  </select>
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Brand</label>

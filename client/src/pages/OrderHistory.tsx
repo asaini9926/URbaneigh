@@ -39,7 +39,7 @@ export default function OrderHistory() {
       const response = await axios.get('http://localhost:5000/api/orders/my-orders', {
         headers: { Authorization: `Bearer ${token}` },
       });
-      setOrders(response.data.orders || []);
+      setOrders(Array.isArray(response.data) ? response.data : (response.data.orders || []));
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load orders');
     } finally {

@@ -4,6 +4,8 @@ import api from "../api/axios";
 import { useDispatch } from "react-redux";
 import { addToCart } from "../store/cartSlice";
 import { Truck, ShieldCheck, ShoppingBag } from "lucide-react";
+import ProductSlider from "../components/ProductSlider";
+import ImageMagnifier from "../components/ImageMagnifier";
 
 const ProductDetails = () => {
   const { id } = useParams();
@@ -12,7 +14,8 @@ const ProductDetails = () => {
 
   const [product, setProduct] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  
+  const [relatedProducts, setRelatedProducts] = useState([]);
+
   // Image State
   const [activeImage, setActiveImage] = useState<string>("");
 
@@ -41,6 +44,17 @@ const ProductDetails = () => {
         // Auto-select first options
         if (colors.length > 0) setSelectedColor(colors[0]);
         if (sizes.length > 0) setSelectedSize(sizes[0]);
+
+        // Fetch Related Products (same category)
+        // Assuming product has a category object or ID. If not, just fetch random
+        if (p.category_id) {
+          const relatedRes = await api.get(`/products?category=${p.category_id}&limit=5`);
+          setRelatedProducts(relatedRes.data.data.filter((rp: any) => rp.id !== p.id));
+        } else {
+          const relatedRes = await api.get(`/products?limit=5`);
+          setRelatedProducts(relatedRes.data.data.filter((rp: any) => rp.id !== p.id));
+        }
+
       } catch (err) {
         console.error("Error loading product", err);
       } finally {
@@ -58,11 +72,11 @@ const ProductDetails = () => {
   // Update Active Image when Variant changes
   useEffect(() => {
     if (currentVariant && currentVariant.images?.length > 0) {
-        setActiveImage(currentVariant.images[0].url);
+      setActiveImage(currentVariant.images[0].url);
     } else if (product && product.variants[0]?.images?.length > 0) {
-        setActiveImage(product.variants[0].images[0].url);
+      setActiveImage(product.variants[0].images[0].url);
     } else {
-        setActiveImage(""); // Reset or keep previous if needed
+      setActiveImage(""); // Reset or keep previous if needed
     }
   }, [selectedColor, selectedSize, product, currentVariant]);
 
@@ -92,28 +106,29 @@ const ProductDetails = () => {
   if (!product) return <div className="min-h-screen flex items-center justify-center">Product not found</div>;
 
   const displayPrice = currentVariant ? currentVariant.price : product.variants[0]?.price;
-  
+
   // Use activeImage state for display, fallback to placeholder
   const finalDisplayImage = activeImage || "https://via.placeholder.com/500";
 
   // Get current variant's image list (or fallback to first variant's images)
-  const currentImages = currentVariant?.images?.length 
-    ? currentVariant.images 
+  const currentImages = currentVariant?.images?.length
+    ? currentVariant.images
     : product?.variants[0]?.images || [];
 
   return (
     <div className="bg-white min-h-screen pt-10 pb-20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
-          
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 mb-20">
+
           {/* LEFT: Image Gallery */}
           <div className="space-y-4">
-            {/* Main Image */}
-            <div className="aspect-[3/4] bg-gray-100 rounded-lg overflow-hidden border border-gray-100">
-              <img
+            {/* Main Image with Zoom */}
+            <div className="aspect-[3/4] bg-gray-100 rounded-lg border border-gray-100 relative z-10">
+              <ImageMagnifier
                 src={finalDisplayImage}
-                alt={product.title}
-                className="w-full h-full object-cover transition-opacity duration-300"
+                width="100%"
+                height="100%"
+                zoomLevel={2.5}
               />
             </div>
 
@@ -147,7 +162,12 @@ const ProductDetails = () => {
                   In Stock
                 </span>
               </div>
-              <p className="text-gray-600 leading-relaxed">{product.description}</p>
+
+              {/* Render HTML Description */}
+              <div
+                className="text-gray-600 leading-relaxed prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: product.description }}
+              />
             </div>
 
             {/* Selectors */}
@@ -201,21 +221,21 @@ const ProductDetails = () => {
                 <ShoppingBag size={20} />
                 {isValidCombination ? "Add to Cart" : "Unavailable"}
               </button>
-              
+
               <button
                 onClick={() => {
-                    const directBuyItem = {
-                        id: currentVariant.id,
-                        productId: product.id,
-                        title: product.title,
-                        price: currentVariant.price,
-                        image: currentVariant.images?.[0]?.url || "https://via.placeholder.com/500",
-                        color: selectedColor,
-                        size: selectedSize,
-                        quantity: 1,
-                        maxStock: currentVariant.inventory?.quantity || 0,
-                    };
-                    navigate('/checkout', { state: { directBuyItem } });
+                  const directBuyItem = {
+                    id: currentVariant.id,
+                    productId: product.id,
+                    title: product.title,
+                    price: currentVariant.price,
+                    image: currentVariant.images?.[0]?.url || "https://via.placeholder.com/500",
+                    color: selectedColor,
+                    size: selectedSize,
+                    quantity: 1,
+                    maxStock: currentVariant.inventory?.quantity || 0,
+                  };
+                  navigate('/checkout', { state: { directBuyItem } });
                 }}
                 disabled={!isValidCombination}
                 className="flex-1 bg-white border-2 border-black text-black h-14 rounded-full font-bold text-sm uppercase tracking-widest hover:bg-gray-50 transition-colors disabled:bg-gray-100 disabled:border-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed"
@@ -237,6 +257,16 @@ const ProductDetails = () => {
             </div>
           </div>
         </div>
+
+        {/* RELATED PRODUCTS */}
+        {relatedProducts.length > 0 && (
+          <div className="border-t border-gray-100 pt-16">
+            <ProductSlider
+              title="You May Also Like"
+              products={relatedProducts}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,44 +1,67 @@
 import {
   ShoppingBag,
-  // Facebook,
+  Facebook,
   Twitter,
   Instagram,
   Mail,
   Phone,
   MapPin,
+  ArrowRight,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import logo from "../assets/logo.png";
+
 
 const Footer = () => {
   return (
     <footer className="bg-gray-900 text-white pt-16 pb-8 border-t border-gray-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
-          {/* 1. Brand Info */}
-          <div className="space-y-4">
+          {/* 1. Brand Info & Newsletter */}
+          <div className="space-y-6">
             <div className="flex items-center gap-2">
-              <div className="bg-white text-black p-1.5 rounded-md">
-                <ShoppingBag size={20} />
-              </div>
-              <span className="font-bold text-xl tracking-tight">
-                URBANIEGH
-              </span>
+              <Link to="/" className="flex items-center gap-2 group z-20">
+                <img
+                  src={logo}
+                  alt="Urbaneigh"
+                  className="h-12 w-auto object-contain"
+                />
+                <span className="font-bold text-xl tracking-tight text-white">
+                  URBANIEGH
+                </span>
+              </Link>
             </div>
             <p className="text-gray-400 text-sm leading-relaxed">
               Redefining comfort with premium cotton essentials. Designed for
               modern living, crafted for everyday luxury.
             </p>
+
+            {/* Newsletter Form */}
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider mb-2 text-gray-500">Subscribe for updates</p>
+              <form className='flex border-b border-gray-700 pb-1' onSubmit={(e) => e.preventDefault()}>
+                <input
+                  type="email"
+                  placeholder="Your email address"
+                  className='bg-transparent border-none outline-none text-white w-full text-sm placeholder-gray-600 focus:placeholder-gray-400'
+                />
+                <button type="submit" className='text-gray-400 hover:text-white transition-colors'>
+                  <ArrowRight size={16} />
+                </button>
+              </form>
+            </div>
+
             <div className="flex gap-4 pt-2">
               <a
                 href="https://www.facebook.com/share/17bye7a34c/"
                 className="text-gray-400 hover:text-white transition-colors"
               >
-                {/* <Facebook size={20} />
+                <Facebook size={20} />
               </a>
               <a
                 href="#"
                 className="text-gray-400 hover:text-white transition-colors"
-              > */}
+              >
                 <Twitter size={20} />
               </a>
               <a

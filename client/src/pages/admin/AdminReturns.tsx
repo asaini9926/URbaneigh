@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../../api/axios';
 
 interface ReturnRequest {
-  return_id: number;
-  order_number: string;
-  customer_name: string;
+  id: number;
+  orderId: number;
   reason: string;
-  requested_at: string;
+  requestedAt: string;
   status: string;
-  estimated_refund: number;
-  approved_refund?: number;
+  estimatedRefundAmount: number;
+  approvedRefundAmount?: number;
+  order: {
+    orderNumber: string;
+    user: {
+      name: string;
+      email: string;
+    }
+  };
 }
 
 export default function AdminReturns() {
@@ -26,12 +32,13 @@ export default function AdminReturns() {
   const fetchReturns = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await axios.get(
-        `http://localhost:5000/api/returns/admin/list?status=${filter}&page=${page}&limit=20`,
-        { headers: { Authorization: `Bearer ${token}` } }
+      // Use api instance instead of raw axios for consistent base URL if needed, 
+      // but keeping logic similar. Using /returns/admin/list endpoint.
+      const response = await api.get(
+        `/returns/admin/list?status=${filter}&page=${page}&limit=20`
       );
-      setReturns(response.data.returns || []);
+      // Controller returns { data: [...], pagination: {...} }
+      setReturns(response.data.data || []);
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load returns');
     } finally {
@@ -41,18 +48,16 @@ export default function AdminReturns() {
 
   const handleApprove = async (returnId: number) => {
     try {
-      const token = localStorage.getItem('token');
       const approvedAmount = prompt(
         'Enter approved refund amount:',
-        returns.find(r => r.return_id === returnId)?.estimated_refund.toString()
+        returns.find(r => r.id === returnId)?.estimatedRefundAmount.toString()
       );
 
       if (approvedAmount) {
-        await axios.post(
-          `http://localhost:5000/api/returns/admin/approve/${returnId}`,
-          { approvedRefundAmount: parseFloat(approvedAmount), notes: 'Admin approved' },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await api.post(`/returns/admin/approve/${returnId}`, {
+          approvedAmount: parseFloat(approvedAmount),
+          notes: 'Admin approved'
+        });
 
         fetchReturns();
       }
@@ -63,16 +68,10 @@ export default function AdminReturns() {
 
   const handleReject = async (returnId: number) => {
     try {
-      const token = localStorage.getItem('token');
       const reason = prompt('Enter rejection reason:');
 
       if (reason) {
-        await axios.post(
-          `http://localhost:5000/api/returns/admin/reject/${returnId}`,
-          { rejectionReason: reason },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-
+        await api.post(`/returns/admin/reject/${returnId}`, { rejectionReason: reason });
         fetchReturns();
       }
     } catch (err: any) {
@@ -112,11 +111,10 @@ export default function AdminReturns() {
               setFilter(status);
               setPage(1);
             }}
-            className={`px-4 py-2 rounded-lg font-medium transition ${
-              filter === status
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
-            }`}
+            className={`px-4 py-2 rounded-lg font-medium transition ${filter === status
+              ? 'bg-indigo-600 text-white'
+              : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
+              }`}
           >
             {status.replace(/_/g, ' ')}
           </button>
@@ -148,16 +146,16 @@ export default function AdminReturns() {
             </thead>
             <tbody className="divide-y">
               {returns.map(ret => (
-                <tr key={ret.return_id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 text-sm font-medium text-gray-900">#{ret.return_id}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{ret.order_number}</td>
-                  <td className="px-6 py-4 text-sm text-gray-600">{ret.customer_name}</td>
+                <tr key={ret.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900">#{ret.id}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{ret.order?.orderNumber}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">{ret.order?.user?.name || 'Guest'}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{ret.reason}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">
-                    {new Date(ret.requested_at).toLocaleDateString()}
+                    {new Date(ret.requestedAt).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 text-sm font-semibold text-gray-900">
-                    ₹{ret.approved_refund || ret.estimated_refund}
+                    ₹{ret.approvedRefundAmount || ret.estimatedRefundAmount}
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(ret.status)}`}>
@@ -168,13 +166,13 @@ export default function AdminReturns() {
                     {ret.status === 'REQUESTED' && (
                       <div className="flex gap-2">
                         <button
-                          onClick={() => handleApprove(ret.return_id)}
+                          onClick={() => handleApprove(ret.id)}
                           className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700"
                         >
                           Approve
                         </button>
                         <button
-                          onClick={() => handleReject(ret.return_id)}
+                          onClick={() => handleReject(ret.id)}
                           className="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700"
                         >
                           Reject

@@ -6,9 +6,9 @@ const prisma = new PrismaClient();
 
 // Helper: Generate idempotency key
 function generateIdempotencyKey(userId, items) {
-  const itemStr = items.map((i) => `${i.id}:${i.quantity}`).join('|');
-  const hash = crypto.createHash('md5').update(`${userId}:${itemStr}:${Date.now()}`).digest('hex');
-  return hash;
+    const itemStr = items.map((i) => `${i.id}:${i.quantity}`).join('|');
+    const hash = crypto.createHash('md5').update(`${userId}:${itemStr}:${Date.now()}`).digest('hex');
+    return hash;
 }
 
 // Create New Order (COD only - Paytm orders are created in paymentController)
@@ -61,7 +61,7 @@ exports.createOrder = async (req, res) => {
 
         // 3. Database Transaction (Create Order + Items + Payment + Reservations)
         const result = await prisma.$transaction(async (prisma) => {
-            
+
             // A. Create Order
             const order = await prisma.order.create({
                 data: {
@@ -134,22 +134,14 @@ exports.createOrder = async (req, res) => {
                 });
             }
 
-            // Update payment status
-            await prisma.payment.update({
-                where: { orderId: order.id },
-                data: {
-                    status: 'COMPLETED',
-                    verifiedAt: new Date()
-                }
-            });
 
             return paidOrder;
         });
 
-        res.status(201).json({ 
-            message: 'Order placed successfully. Your order will be delivered with Cash on Delivery option.', 
-            orderId: result.id, 
-            orderNumber: result.orderNumber 
+        res.status(201).json({
+            message: 'Order placed successfully. Your order will be delivered with Cash on Delivery option.',
+            orderId: result.id,
+            orderNumber: result.orderNumber
         });
 
     } catch (error) {
@@ -163,7 +155,7 @@ exports.getMyOrders = async (req, res) => {
     try {
         const orders = await prisma.order.findMany({
             where: { userId: req.user.id },
-            include: { 
+            include: {
                 items: { include: { variant: { include: { product: true } } } },
                 payment: true,
                 shipments: true
@@ -185,7 +177,7 @@ exports.getAllOrders = async (req, res) => {
 
         if (status) whereClause.status = status;
         if (paymentMethod) whereClause.paymentMethod = paymentMethod;
-        
+
         if (startDate || endDate) {
             whereClause.createdAt = {};
             if (startDate) whereClause.createdAt.gte = new Date(startDate);
@@ -242,6 +234,69 @@ exports.updateOrderStatus = async (req, res) => {
         });
 
         res.json({ message: 'Order status updated', order: updatedOrder });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// [ADMIN] Bulk Archive/Delete
+exports.bulkDeleteOrders = async (req, res) => {
+    try {
+        const { ids } = req.body;
+        // For orders, usually we archive them or just hard delete if testing
+        // Hard deletion requires cascading delete of items, payments, etc.
+        // Prisma transaction is best.
+
+        await prisma.$transaction(async (prisma) => {
+            // Delete related
+            await prisma.orderItem.deleteMany({ where: { orderId: { in: ids } } });
+            await prisma.payment.deleteMany({ where: { orderId: { in: ids } } });
+            await prisma.shipment.deleteMany({ where: { orderId: { in: ids } } });
+            await prisma.reservation.deleteMany({ where: { orderId: { in: ids } } });
+            // Delete Order
+            await prisma.order.deleteMany({ where: { id: { in: ids } } });
+        });
+
+        res.json({ message: `${ids.length} orders deleted` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// [ADMIN] Update Fulfillment Status
+exports.updateFulfillmentStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body; // UNFULFILLED, FULFILLED, etc.
+
+        const order = await prisma.order.update({
+            where: { id: Number(id) },
+            data: { fulfillmentStatus: status }
+        });
+        res.json(order);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// [ADMIN] Get Single Order Details (Detailed)
+exports.getAdminOrderById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const order = await prisma.order.findUnique({
+            where: { id: Number(id) },
+            include: {
+                user: { select: { id: true, name: true, email: true, phone: true } },
+                items: { include: { variant: { include: { product: true } } } },
+                payment: true,
+                shipments: true,
+                return: true  // Include Returns
+            }
+        });
+
+        if (!order) return res.status(404).json({ error: 'Order not found' });
+
+        res.json({ order });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

@@ -1,37 +1,9 @@
 // server/controllers/paymentController.js
 const { PrismaClient } = require('@prisma/client');
 const crypto = require('crypto');
-const axios = require('axios');
 const { validateTransition } = require('../utils/orderTransitionGuard');
+const paytmService = require('../services/paytmService');
 const prisma = new PrismaClient();
-const PaytmChecksum = require('paytmchecksum');
-
-// Paytm Configuration (from .env)
-const PAYTM_MID = process.env.PAYTM_MID;
-const PAYTM_KEY = process.env.PAYTM_MERCHANT_KEY;
-const PAYTM_WEBSITE = process.env.PAYTM_WEBSITE || 'DEFAULT';
-const PAYTM_CHANNEL_ID = process.env.PAYTM_CHANNEL_ID || 'WEB';
-const PAYTM_INDUSTRY_TYPE = process.env.PAYTM_INDUSTRY_TYPE || 'Retail';
-const PAYTM_INITIATE_URL = process.env.PAYTM_INITIATE_URL || 'https://securegw.paytm.in/theia/api/v1/initiateTransaction';
-const PAYTM_VERIFY_URL = process.env.PAYTM_VERIFY_URL || 'https://securegw.paytm.in/v2/orders';
-
-// // Helper: Generate checksum for Paytm
-// function generateChecksum(data, salt) {
-//   let str = '';
-//   Object.keys(data)
-//     .sort()
-//     .forEach((key) => {
-//       str += data[key] + '|';
-//     });
-//   str += salt;
-//   return crypto.createHash('sha256').update(str).digest('hex');
-// }
-
-// // Helper: Validate Paytm checksum
-// function validateChecksum(data, receivedChecksum, salt) {
-//   const checksum = generateChecksum(data, salt);
-//   return checksum === receivedChecksum;
-// }
 
 // Generate idempotency key for preventing duplicate orders
 function generateIdempotencyKey(userId, items) {
@@ -47,6 +19,7 @@ exports.initiatePayment = async (req, res) => {
   try {
     const { items, shippingAddress, paymentMethod, totalAmount } = req.body;
     const userId = req.user.id;
+    const user = req.user; // Assuming req.user contains email/phone
 
     if (paymentMethod !== 'PAYTM') {
       return res.status(400).json({ error: 'Invalid payment method for this endpoint' });
@@ -69,8 +42,8 @@ exports.initiatePayment = async (req, res) => {
       // Check inventory
       const availableQty = variant.inventory.quantity - variant.inventory.reserved_qty;
       if (availableQty < item.quantity) {
-        return res.status(400).json({ 
-          error: `Insufficient stock for ${variant.product.title}. Available: ${availableQty}` 
+        return res.status(400).json({
+          error: `Insufficient stock for ${variant.product.title}. Available: ${availableQty}`
         });
       }
 
@@ -90,8 +63,8 @@ exports.initiatePayment = async (req, res) => {
 
     // Validate frontend total matches server calculation
     if (Math.abs(finalTotal - totalAmount) > 0.01) {
-      return res.status(400).json({ 
-        error: 'Price mismatch detected. Please refresh and try again.' 
+      return res.status(400).json({
+        error: 'Price mismatch detected. Please refresh and try again.'
       });
     }
 
@@ -148,72 +121,63 @@ exports.initiatePayment = async (req, res) => {
       return order;
     });
 
-    // Step 3: Call Paytm Initiate Transaction API
+    // Step 3: Call Paytm Initiate Transaction API using Service
     const orderId = result.id;
     const orderNumber = result.orderNumber;
     const txnAmount = String(Math.round(finalTotal * 100) / 100);
 
-    const paytmData = {
-      requestType: 'Payment',
-      mid: PAYTM_MID,
-      orderId: String(orderId),
-      websiteName: PAYTM_WEBSITE,
-      amount: txnAmount,
-      redirectUrl: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/checkout?orderId=${orderId}`,
-      reference_no: orderNumber,
-      extendedInfo: {
-        udf1: String(userId) // Store user ID for reference
-      }
-    };
+    // Provide default email/phone if missing (Dev mode fallback)
+    const customerId = `CUST-${userId}`;
+    const customerEmail = user.email || 'customer@example.com';
+    const customerPhone = user.phone || '9999999999';
 
-    // Generate checksum
-    const checksum = generateChecksum(paytmData, PAYTM_KEY);
-    paytmData.checksum = checksum;
-
-    // Call Paytm API
-    let txnToken;
     try {
-      const paytmResponse = await axios.post(PAYTM_INITIATE_URL, paytmData, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      const paytmResponse = await paytmService.initiateTransaction(
+        orderNumber, // Pass OrderNumber as Paytm's OrderId
+        txnAmount,
+        customerId,
+        customerEmail,
+        customerPhone
+      );
 
-      if (paytmResponse.data.body && paytmResponse.data.body.txnToken) {
-        txnToken = paytmResponse.data.body.txnToken;
-        
+      if (paytmResponse.body && paytmResponse.body.txnToken) {
+        const txnToken = paytmResponse.body.txnToken;
+
         // Store Paytm response in payment record for auditing
         await prisma.payment.update({
           where: { orderId: orderId },
           data: {
-            gateway_response: paytmResponse.data
+            gateway_response: paytmResponse,
+            paytm_txn_token: txnToken
           }
         });
+
+        res.status(200).json({
+          status: 'success',
+          orderId: orderId,
+          orderNumber: orderNumber,
+          txnToken: txnToken,
+          amount: txnAmount,
+          mid: paytmService.mid, // Send MID to frontend for invoking checkout
+          message: 'Payment initiated successfully. Proceed to Paytm.'
+        });
       } else {
-        throw new Error('Failed to get txnToken from Paytm');
+        throw new Error(paytmResponse.body?.resultInfo?.resultMsg || 'Failed to get txnToken from Paytm');
       }
     } catch (error) {
       console.error('Paytm API error:', error);
-      
+
       // Rollback: Cancel the order if Paytm fails
       await prisma.order.update({
         where: { id: orderId },
         data: { status: 'PAYMENT_FAILED' }
       });
 
-      return res.status(500).json({ 
-        error: 'Payment gateway initialization failed. Please try again.' 
+      return res.status(500).json({
+        error: 'Payment gateway initialization failed. Please try again.',
+        details: error.message
       });
     }
-
-    res.status(200).json({
-      status: 'success',
-      orderId: orderId,
-      orderNumber: orderNumber,
-      txnToken: txnToken,
-      amount: txnAmount,
-      message: 'Payment initiated successfully. Proceed to Paytm.'
-    });
 
   } catch (error) {
     console.error('Payment initiation error:', error);
@@ -226,7 +190,7 @@ exports.initiatePayment = async (req, res) => {
 // ============================================================================
 exports.verifyPayment = async (req, res) => {
   try {
-    const { orderId, txnToken, response } = req.body;
+    const { orderId } = req.body;
     const userId = req.user.id;
 
     if (!orderId) {
@@ -236,7 +200,7 @@ exports.verifyPayment = async (req, res) => {
     // Fetch the order
     const order = await prisma.order.findUnique({
       where: { id: parseInt(orderId) },
-      include: { payment: true, items: true }
+      include: { payment: true }
     });
 
     if (!order) {
@@ -250,40 +214,39 @@ exports.verifyPayment = async (req, res) => {
     // Verify against Paytm API
     let paytmResponse;
     try {
-      const verifyUrl = `${PAYTM_VERIFY_URL}/${order.orderNumber}`;
-      paytmResponse = await axios.get(verifyUrl, {
-        headers: {
-          'x-mid': PAYTM_MID,
-          'x-request-id': `${Date.now()}`
-        }
-      });
+      paytmResponse = await paytmService.getTxnStatus(order.orderNumber);
     } catch (error) {
       console.error('Paytm verification API error:', error);
-      
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Payment verification failed',
         status: 'failed'
       });
     }
 
     // Check payment status from Paytm
-    if (paytmResponse.data.body && paytmResponse.data.body.resultInfo) {
-      const resultInfo = paytmResponse.data.body.resultInfo;
-      
+    if (paytmResponse.body && paytmResponse.body.resultInfo) {
+      const resultInfo = paytmResponse.body.resultInfo;
+      const body = paytmResponse.body;
+
       if (resultInfo.resultStatus === 'TXN_SUCCESS') {
         // Payment was successful - finalize the order
         const result = await prisma.$transaction(async (prisma) => {
           // Validate transition PAYMENT_PENDING -> PAID
-          validateTransition(order.status, 'PAID');
-          
+          // Only validate if not already paid (idempotency)
+          if (order.status !== 'PAID') {
+            validateTransition(order.status, 'PAID');
+          }
+
           // Update payment status
           await prisma.payment.update({
             where: { orderId: order.id },
             data: {
               status: 'COMPLETED',
               paytm_status: 'TXN_SUCCESS',
-              paytm_txn_id: paytmResponse.data.body.txnId,
-              gateway_response: paytmResponse.data
+              paytm_txn_id: body.txnId,
+              paytm_payment_mode: body.paymentMode,
+              paytm_bank_txn_id: body.bankTxnId,
+              gateway_response: paytmResponse
             }
           });
 
@@ -335,7 +298,7 @@ exports.verifyPayment = async (req, res) => {
             data: {
               status: 'FAILED',
               paytm_status: resultInfo.resultStatus,
-              gateway_response: paytmResponse.data
+              gateway_response: paytmResponse
             }
           });
 
@@ -381,7 +344,7 @@ exports.verifyPayment = async (req, res) => {
       }
     }
 
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Invalid response from payment gateway',
       status: 'failed'
     });
@@ -397,54 +360,71 @@ exports.verifyPayment = async (req, res) => {
 // ============================================================================
 exports.paytmWebhook = async (req, res) => {
   try {
-    const data = req.body;
+    const data = req.body; // Incoming Form Data usually, but simpler if JSON
 
-    // Verify checksum
-    const receivedChecksum = data.checksum;
-    const checksum = generateChecksum(data, PAYTM_KEY);
+    // Paytm sends checksum in CHECKSUMHASH or checksum param
+    const receivedChecksum = data.CHECKSUMHASH || data.checksum;
 
-    if (checksum !== receivedChecksum) {
-      console.error('Invalid checksum in webhook');
-      return res.status(403).json({ error: 'Invalid checksum' });
+    if (!receivedChecksum) {
+      return res.status(400).send("Checksum missing");
     }
 
-    const orderId = parseInt(data.orderId);
+    // Remove checksum from params for verification
+    const params = {};
+    Object.keys(data).forEach(key => {
+      if (key !== "CHECKSUMHASH" && key !== "checksum") {
+        params[key] = data[key];
+      }
+    });
+
+    const isValid = await paytmService.validateChecksum(params, receivedChecksum);
+
+    if (!isValid) {
+      console.error('Invalid checksum in webhook');
+      // For security, just send 200 OK so Paytm doesn't retry infinitely if it's junk
+      return res.status(200).send("Invalid Checksum");
+    }
+
+    const orderNumber = data.ORDERID;
     const order = await prisma.order.findUnique({
-      where: { id: orderId },
+      where: { orderNumber: orderNumber },
       include: { payment: true }
     });
 
     if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
+      return res.status(200).send("Order Not Found");
     }
 
-    // Update payment based on response
-    if (data.resultInfo && data.resultInfo.resultStatus === 'TXN_SUCCESS') {
+    // Avoid re-processing if already completed
+    if (order.status === 'PAID') {
+      return res.status(200).send("Already Processed");
+    }
+
+    // Process status map
+    if (data.STATUS === 'TXN_SUCCESS') {
       await prisma.$transaction(async (prisma) => {
-        // Validate transition
-        const order = await prisma.order.findUnique({ where: { id: orderId } });
-        validateTransition(order.status, 'PAID');
-        
         // Update payment
         await prisma.payment.update({
-          where: { orderId: orderId },
+          where: { orderId: order.id },
           data: {
             status: 'COMPLETED',
             paytm_status: 'TXN_SUCCESS',
-            paytm_txn_id: data.txnId,
+            paytm_txn_id: data.TXNID,
+            paytm_payment_mode: data.PAYMENTMODE,
+            paytm_bank_txn_id: data.BANKTXNID,
             gateway_response: data
           }
         });
 
         // Update order
-        const updatedOrder = await prisma.order.update({
-          where: { id: orderId },
+        await prisma.order.update({
+          where: { id: order.id },
           data: { status: 'PAID' }
         });
 
-        // Finalize reservations and decrement inventory
+        // Finalize reservations
         const reservations = await prisma.reservation.findMany({
-          where: { orderId: orderId, status: 'ACTIVE' }
+          where: { orderId: order.id, status: 'ACTIVE' }
         });
 
         for (const reservation of reservations) {
@@ -452,7 +432,6 @@ exports.paytmWebhook = async (req, res) => {
             where: { id: reservation.id },
             data: { status: 'FINALIZED' }
           });
-
           await prisma.inventory.update({
             where: { variantId: reservation.variantId },
             data: {
@@ -462,33 +441,29 @@ exports.paytmWebhook = async (req, res) => {
           });
         }
       });
-    } else if (data.resultInfo && data.resultInfo.resultStatus === 'TXN_FAILED') {
+    } else if (data.STATUS === 'TXN_FAILURE') {
       await prisma.$transaction(async (prisma) => {
         await prisma.payment.update({
-          where: { orderId: orderId },
+          where: { orderId: order.id },
           data: {
             status: 'FAILED',
-            paytm_status: data.resultInfo.resultStatus,
+            paytm_status: 'TXN_FAILURE',
             gateway_response: data
           }
         });
-
         await prisma.order.update({
-          where: { id: orderId },
+          where: { id: order.id },
           data: { status: 'PAYMENT_FAILED' }
         });
-
         // Release reservations
         const reservations = await prisma.reservation.findMany({
-          where: { orderId: orderId, status: 'ACTIVE' }
+          where: { orderId: order.id, status: 'ACTIVE' }
         });
-
         for (const reservation of reservations) {
           await prisma.reservation.update({
             where: { id: reservation.id },
             data: { status: 'RELEASED' }
           });
-
           await prisma.inventory.update({
             where: { variantId: reservation.variantId },
             data: { reserved_qty: { decrement: reservation.quantity } }
@@ -497,10 +472,11 @@ exports.paytmWebhook = async (req, res) => {
       });
     }
 
-    res.status(200).json({ message: 'Webhook processed successfully' });
+    res.status(200).send('TXT_SUCCESS');
 
   } catch (error) {
     console.error('Webhook error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).send("Error");
   }
 };
+

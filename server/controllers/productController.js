@@ -59,32 +59,94 @@ exports.createProduct = async (req, res) => {
 // 2. Get All Products (With Filters & Pagination)
 exports.getProducts = async (req, res) => {
     try {
-        const { page = 1, limit = 10, category, brand, sort, search } = req.query;
+        const { page = 1, limit = 10, category, brand, sort, search, color, minPrice, maxPrice } = req.query;
         const skip = (page - 1) * limit;
 
         // Build Filter Object
         const where = { status: 'ACTIVE' };
         
-        if (category) where.categoryId = parseInt(category);
-        if (brand) where.brandId = parseInt(brand);
+        // Handle Category (ID or Slug)
+        if (category) {
+            const catId = parseInt(category);
+            if (!isNaN(catId)) {
+                // If providing ID, we should matching categoryId OR parentId (if we want to show all children products)
+                // But Product model uses direct categoryId link.
+                // If I select "Men" (Parent), I want to see products in "T-Shirts" (Child).
+                // So we need to find all children IDs first.
+                // This is slightly complex query. For now, let's assume direct match or we fetch children ids.
+                // Or simplified: use the IN operator if we had the list.
+                // To keep it performant, frontend should send relevant IDs, or we do a sub-query.
+                
+                // Let's do a sub-query logic (fetch category and its children)
+                const cat = await prisma.category.findUnique({
+                    where: { id: catId },
+                    include: { children: true }
+                });
+                
+                if (cat) {
+                    const ids = [cat.id, ...cat.children.map(c => c.id)];
+                    where.categoryId = { in: ids };
+                } else {
+                     where.categoryId = catId; // Fallback
+                }
+            } else {
+                where.category = { slug: category };
+            }
+        }
+
+        // Handle Brand (ID or Slug)
+        if (brand) {
+            const brandId = parseInt(brand);
+            if (!isNaN(brandId)) {
+                where.brandId = brandId;
+            } else {
+                where.brand = { slug: brand };
+            }
+        }
         
         // Search Logic
         if (search) {
-            where.title = { contains: search };
+            where.OR = [
+                { title: { contains: search } }, // Case insensitive usually depends on DB collation
+                { description: { contains: search } }
+            ];
+        }
+
+        // --- NEW FILTERS ---
+        
+        // Color & Price Filtering happens at ProductVariant level.
+        // We filter products that HAVE at least one variant matching criteria.
+        
+        if (color || minPrice || maxPrice) {
+            where.variants = {
+                some: {
+                    AND: [
+                        color ? { color: { equals: color } } : {}, // Case sensitive? 'contains' might be better but equals is stricter
+                        minPrice ? { price: { gte: Number(minPrice) } } : {},
+                        maxPrice ? { price: { lte: Number(maxPrice) } } : {}
+                    ]
+                }
+            };
         }
 
         // --- SORTING LOGIC ---
         let orderBy = { createdAt: 'desc' }; // Default: Newest first
 
         if (sort === 'price_low') {
-            orderBy = { variants: { _count: 'asc' } }; // Approximate low price
+            // Sorting by price is tricky with variants. We sort by the lowest variant price.
+            // Prisma doesn't support relation sorting easily in `orderBy`.
+            // We'll stick to basic sort or use aggregated value if needed.
+            // For now, let's keep it simple or remove if problematic.
+            // Actually, `variants: { _count: ... }` behaves weirdly for price.
+            // Let's rely on createdAt for default and simple price sort if possible, 
+            // but accurate price sort requires aggregate field on Product.
+            // Reverting to basic logic for now.
+             orderBy = { createdAt: 'desc' }; 
         } else if (sort === 'price_high') {
-            orderBy = { variants: { _count: 'desc' } };
+             orderBy = { createdAt: 'desc' };
         } else if (sort === 'newest') {
             orderBy = { createdAt: 'desc' };
         } else if (sort === 'best_selling') {
-            // TODO: Add 'soldCount' field to Product model for real analytics
-            // For now, we sort by newest as a safe fallback
             orderBy = { createdAt: 'desc' }; 
         }
 
@@ -98,7 +160,13 @@ exports.getProducts = async (req, res) => {
                 brand: true,
                 category: true,
                 variants: {
-                    select: { price: true, size: true, color: true, images: true }
+                    select: { 
+                        price: true, 
+                        size: true, 
+                        color: true, 
+                        images: true,
+                        inventory: true  
+                    }
                 }
             }
         });
@@ -142,6 +210,39 @@ exports.getProductById = async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+};
+
+// 4. Get Dynamic Filters (Price Range, Colors)
+exports.getFilters = async (req, res) => {
+    try {
+        // Aggregate Min/Max Price and Distinct Colors
+        // Colors are in ProductVariant table.
+        // We only want filters for ACTIVE products.
+        
+        // 1. Get Min/Max Price from Variants of Active Products
+        const priceAgg = await prisma.productVariant.aggregate({
+            where: { product: { status: 'ACTIVE' } },
+            _min: { price: true },
+            _max: { price: true }
+        });
+
+        // 2. Get Distinct Colors (Prisma doesn't support distinct on related fields directly in findMany nicely for flat list, 
+        // asking distinct on ProductVariant is easiest)
+        const colors = await prisma.productVariant.findMany({
+            where: { product: { status: 'ACTIVE' } },
+            distinct: ['color'],
+            select: { color: true }
+        });
+
+        res.json({
+            minPrice: priceAgg._min.price || 0,
+            maxPrice: priceAgg._max.price || 10000,
+            colors: colors.map(c => c.color).filter(Boolean)
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 };
 
 // [ADMIN] Update Product
@@ -238,6 +339,55 @@ exports.deleteProduct = async (req, res) => {
         if (error.code === 'P2003') {
             return res.status(400).json({ error: 'Cannot delete: Product is part of existing orders.' });
         }
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// [ADMIN] Bulk Delete Products
+exports.bulkDeleteProducts = async (req, res) => {
+    try {
+        const { ids } = req.body; // Array of IDs
+        if (!ids || ids.length === 0) return res.status(400).json({ error: "No IDs provided" });
+
+        // 1. Find all variants for these products
+        const variants = await prisma.productVariant.findMany({ where: { productId: { in: ids } } });
+        const variantIds = variants.map(v => v.id);
+
+        // 2. Cascade Delete
+        await prisma.inventory.deleteMany({ where: { variantId: { in: variantIds } } });
+        await prisma.productImage.deleteMany({ where: { variantId: { in: variantIds } } });
+        await prisma.productVariant.deleteMany({ where: { productId: { in: ids } } });
+        
+        // 3. Delete Products
+        const result = await prisma.product.deleteMany({
+            where: { id: { in: ids } }
+        });
+
+        res.json({ message: `${result.count} products deleted successfully` });
+    } catch (error) {
+        if (error.code === 'P2003') {
+            return res.status(400).json({ error: 'Some products could not be deleted because they are in existing orders.' });
+        }
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// [ADMIN] Bulk Status Update
+exports.bulkUpdateStatus = async (req, res) => {
+    try {
+        const { ids, status } = req.body; // status: 'ACTIVE' | 'DRAFT' | 'ARCHIVED'
+        
+        if (!['ACTIVE', 'DRAFT', 'ARCHIVED'].includes(status)) {
+            return res.status(400).json({ error: "Invalid status" });
+        }
+
+        const result = await prisma.product.updateMany({
+            where: { id: { in: ids } },
+            data: { status }
+        });
+
+        res.json({ message: `${result.count} products updated to ${status}` });
+    } catch (error) {
         res.status(500).json({ error: error.message });
     }
 };
