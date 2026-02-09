@@ -35,24 +35,34 @@ const initialState: CartState = savedCart ? JSON.parse(savedCart) : {
 
 // Helper to map Server Cart to Client Cart
 const mapServerCartToClient = (serverCart: any): CartState => {
-  const items = serverCart.items.map((item: any) => ({
+  // unwrap common backend response shapes
+  const cart =
+    serverCart?.items ? serverCart :
+    serverCart?.cart ? serverCart.cart :
+    serverCart?.data ? serverCart.data :
+    {};
+
+  const rawItems = Array.isArray(cart.items) ? cart.items : [];
+
+  const items = rawItems.map((item: any) => ({
     id: item.variantId,
-    productId: item.variant.productId,
-    title: item.variant.product.title,
-    slug: item.variant.product.slug,
-    price: Number(item.variant.price),
-    image: item.variant.images?.[0]?.url || '',
-    color: item.variant.color,
-    size: item.variant.size,
-    quantity: item.quantity,
-    maxStock: item.variant.inventory?.quantity || 0
+    productId: item.variant?.productId,
+    title: item.variant?.product?.title || '',
+    slug: item.variant?.product?.slug || '',
+    price: Number(item.variant?.price || 0),
+    image: item.variant?.images?.[0]?.url || '',
+    color: item.variant?.color || '',
+    size: item.variant?.size || '',
+    quantity: item.quantity || 0,
+    maxStock: item.variant?.inventory?.quantity || 0
   }));
 
-  const totalQuantity = items.reduce((acc: number, item: any) => acc + item.quantity, 0);
-  const totalAmount = items.reduce((acc: number, item: any) => acc + (item.price * item.quantity), 0);
+  const totalQuantity = items.reduce((acc, item) => acc + item.quantity, 0);
+  const totalAmount = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   return { items, totalQuantity, totalAmount };
 };
+
 
 export const fetchCart = createAsyncThunk(
   'cart/fetchCart',
