@@ -180,7 +180,7 @@ async function main() {
         // Slugify title
         const slug = title.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
 
-        const existing = await prisma.product.findFirst({ where: { slug } });
+        const existing = await prisma.product.findFirst({ where: { title } });
         let productId;
 
         if (!existing) {
