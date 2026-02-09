@@ -1,4 +1,12 @@
-import { ShoppingBag, User, Search, Menu, X, LogOut, ChevronDown } from "lucide-react";
+import {
+  ShoppingBag,
+  User,
+  Search,
+  Menu,
+  X,
+  LogOut,
+  ChevronDown,
+} from "lucide-react";
 import logo from "../assets/logo.png";
 import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -17,7 +25,7 @@ const Navbar = () => {
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const { isAuthenticated, user } = useSelector(
-    (state: RootState) => state.auth
+    (state: RootState) => state.auth,
   );
   const { totalQuantity } = useSelector((state: RootState) => state.cart);
   const dispatch = useDispatch();
@@ -71,8 +79,12 @@ const Navbar = () => {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const res = await api.get('/master/categories');
-        setCategories(res.data);
+        const res = await api.get("/master/categories");
+        const cats = Array.isArray(res.data)
+          ? res.data
+          : res.data.data || res.data.categories || [];
+
+        setCategories(cats);
       } catch (err) {
         console.error("Failed to fetch menu categories", err);
       }
@@ -98,8 +110,9 @@ const Navbar = () => {
 
           {/* 2. Desktop Navigation (Hidden when search is open) */}
           <div
-            className={`hidden md:flex space-x-8 transition-opacity duration-200 ${showSearch ? "opacity-0 pointer-events-none" : "opacity-100"
-              }`}
+            className={`hidden md:flex space-x-8 transition-opacity duration-200 ${
+              showSearch ? "opacity-0 pointer-events-none" : "opacity-100"
+            }`}
           >
             {categories.map((cat) => (
               <div key={cat.id} className="relative group">
@@ -107,7 +120,11 @@ const Navbar = () => {
                   onClick={() => navigate(`/shop?category=${cat.id}`)}
                   className="flex items-center gap-1 text-sm font-medium text-gray-700 group-hover:text-black py-5 uppercase tracking-wide"
                 >
-                  {cat.name} <ChevronDown size={14} className="group-hover:rotate-180 transition-transform" />
+                  {cat.name}{" "}
+                  <ChevronDown
+                    size={14}
+                    className="group-hover:rotate-180 transition-transform"
+                  />
                 </button>
 
                 {/* Submenu */}
@@ -143,8 +160,9 @@ const Navbar = () => {
 
           {/* 3. Integrated Search Bar (Desktop Overlay) */}
           <div
-            className={`absolute left-0 right-0 top-0 bg-white flex flex-col items-center pt-3 transition-transform duration-300 z-10 shadow-sm ${showSearch ? "translate-y-0" : "-translate-y-full"
-              }`}
+            className={`absolute left-0 right-0 top-0 bg-white flex flex-col items-center pt-3 transition-transform duration-300 z-10 shadow-sm ${
+              showSearch ? "translate-y-0" : "-translate-y-full"
+            }`}
           >
             <div className="w-full max-w-2xl px-4 relative flex items-center h-12">
               <form onSubmit={handleSearchSubmit} className="w-full relative">
@@ -158,7 +176,7 @@ const Navbar = () => {
                   placeholder="Search for products (e.g. 'Cotton Tshirt')..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                //   onBlur={() => setTimeout(() => setShowSearch(false), 200)} // Removed to allow clicking suggestions
+                  //   onBlur={() => setTimeout(() => setShowSearch(false), 200)} // Removed to allow clicking suggestions
                 />
               </form>
               <button
@@ -188,13 +206,20 @@ const Navbar = () => {
                     className="flex items-center gap-4 p-3 hover:bg-gray-50 transition-colors border-b last:border-0"
                   >
                     <img
-                      src={product.variants?.[0]?.images?.[0]?.url || "https://via.placeholder.com/50"}
+                      src={
+                        product.variants?.[0]?.images?.[0]?.url ||
+                        "https://via.placeholder.com/50"
+                      }
                       alt={product.title}
                       className="w-10 h-10 object-cover rounded"
                     />
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{product.title}</p>
-                      <p className="text-xs text-gray-500">₹{product.variants?.[0]?.price}</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {product.title}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        ₹{product.variants?.[0]?.price}
+                      </p>
                     </div>
                   </Link>
                 ))}
@@ -363,13 +388,20 @@ const Navbar = () => {
                     className="flex items-center gap-3 p-2 border-b last:border-0"
                   >
                     <img
-                      src={product.variants?.[0]?.images?.[0]?.url || "https://via.placeholder.com/50"}
+                      src={
+                        product.variants?.[0]?.images?.[0]?.url ||
+                        "https://via.placeholder.com/50"
+                      }
                       alt={product.title}
                       className="w-8 h-8 object-cover rounded"
                     />
                     <div>
-                      <p className="text-xs font-bold text-gray-900 line-clamp-1">{product.title}</p>
-                      <p className="text-[10px] text-gray-500">₹{product.variants?.[0]?.price}</p>
+                      <p className="text-xs font-bold text-gray-900 line-clamp-1">
+                        {product.title}
+                      </p>
+                      <p className="text-[10px] text-gray-500">
+                        ₹{product.variants?.[0]?.price}
+                      </p>
                     </div>
                   </Link>
                 ))}
@@ -420,7 +452,6 @@ const Navbar = () => {
               </div>
             ))}
 
-
             <Link
               to="/shop?sort=newest"
               onClick={() => setIsMobileMenuOpen(false)}
@@ -452,7 +483,7 @@ const Navbar = () => {
                   </div>
                 </div>
 
-                {(user?.roles?.length ??0) > 0 && (
+                {(user?.roles?.length ?? 0) > 0 && (
                   <Link
                     to="/admin"
                     onClick={() => setIsMobileMenuOpen(false)}
