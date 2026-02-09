@@ -41,7 +41,7 @@ export default function ReturnTracking() {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        `http://localhost:5000/api/returns/details/${returnId}`,
+        `import.meta.env.VITE_API_URL/returns/details/${returnId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setReturnData(response.data);

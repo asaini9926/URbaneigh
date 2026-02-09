@@ -4,7 +4,7 @@ const axios = require('axios');
 // for test purposes we assume one can be pasted or we can login)
 // Actually, this script needs to login as admin.
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'import.meta.env.VITE_API_URL';
 
 async function testAnalytics() {
     try {

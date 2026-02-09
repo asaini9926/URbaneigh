@@ -36,7 +36,7 @@ export default function OrderHistory() {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/orders/my-orders', {
+      const response = await axios.get('import.meta.env.VITE_API_URL/orders/my-orders', {
         headers: { Authorization: `Bearer ${token}` },
       });
       setOrders(Array.isArray(response.data) ? response.data : (response.data.orders || []));
