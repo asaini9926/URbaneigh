@@ -27,7 +27,7 @@ exports.generateOTP = async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    if (order.payment_method !== 'COD') {
+    if (order.paymentMethod !== 'COD') {
       return res.status(400).json({ error: 'Order is not COD' });
     }
 
@@ -104,7 +104,7 @@ exports.verifyOTP = async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    if (order.payment_method !== 'COD') {
+    if (order.paymentMethod !== 'COD') {
       return res.status(400).json({ error: 'Order is not COD' });
     }
 
@@ -177,7 +177,6 @@ exports.verifyOTP = async (req, res) => {
         where: { id: orderId },
         data: {
           status: 'DELIVERED',
-          delivered_at: now,
           notes: `${order.notes || ''}\n[${now.toISOString()}] COD verified via OTP. Payment marked complete.`,
         },
       });
@@ -188,6 +187,7 @@ exports.verifyOTP = async (req, res) => {
           where: { id: order.shipment.id },
           data: {
             status: 'DELIVERED',
+            delivered_at: now,
             delhivery_last_status_update: now,
           },
         });
@@ -243,7 +243,7 @@ exports.handleFailedDelivery = async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    if (order.payment_method !== 'COD') {
+    if (order.paymentMethod !== 'COD') {
       return res.status(400).json({ error: 'Order is not COD' });
     }
 
@@ -330,7 +330,7 @@ exports.getCODStatus = async (req, res) => {
       return res.status(404).json({ error: 'Order not found' });
     }
 
-    if (order.payment_method !== 'COD') {
+    if (order.paymentMethod !== 'COD') {
       return res.status(400).json({ error: 'Order is not COD' });
     }
 
@@ -367,7 +367,7 @@ exports.getPendingCODOrders = async (req, res) => {
 
     const orders = await prisma.order.findMany({
       where: {
-        payment_method: 'COD',
+        paymentMethod: 'COD',
         status: status || 'OUT_FOR_DELIVERY',
       },
       include: {
@@ -382,7 +382,7 @@ exports.getPendingCODOrders = async (req, res) => {
 
     const total = await prisma.order.count({
       where: {
-        payment_method: 'COD',
+        paymentMethod: 'COD',
         status: status || 'OUT_FOR_DELIVERY',
       },
     });

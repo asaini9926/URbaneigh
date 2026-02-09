@@ -27,7 +27,7 @@ const Footer = () => {
                   className="h-12 w-auto object-contain"
                 />
                 <span className="font-bold text-xl tracking-tight text-white">
-                  URBANIEGH
+                  URBANIEGH FASHIONS
                 </span>
               </Link>
             </div>
@@ -171,14 +171,16 @@ const Footer = () => {
               <li className="flex items-start gap-3">
                 <MapPin size={18} className="mt-0.5 shrink-0" />
                 <span>
-                  123 Fashion Street, Tech Park,
+                  Urbaneigh fashions 106C, 4c Scheme,
                   <br />
-                  Bangalore, India 560001
+                  New Loah Mandi Road, Harmada,
+                  <br />
+                  Jaipur, Rajasthan 302013
                 </span>
               </li>
               <li className="flex items-center gap-3">
                 <Phone size={18} />
-                <span>+91  63090 30535</span>
+                <span>+91 70219 55071</span>
               </li>
               <li className="flex items-center gap-3">
                 <Mail size={18} />

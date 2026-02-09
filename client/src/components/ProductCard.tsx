@@ -1,26 +1,27 @@
 import { ShoppingCart } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
-import { addToCart } from '../store/cartSlice';
+import { addItemToCart } from '../store/cartSlice';
 
 // Define what a Product looks like (matching your Backend API)
 interface ProductProps {
+  id: number;
+  title: string;
+  slug: string;
+  variants: {
     id: number;
-    title: string;
-    variants: { 
-        id: number;
-        price: string; 
-        images: { url: string }[];
-        inventory: { quantity: number };
-        color: string;
-        size: string;
-    }[];
-    category: { name: string };
+    price: string;
+    images: { url: string }[];
+    inventory: { quantity: number };
+    color: string;
+    size: string;
+  }[];
+  category: { name: string };
 }
 
 const ProductCard = ({ product }: { product: ProductProps }) => {
   const dispatch = useDispatch();
-  
+
   // Get the first variant's details (Price & Image)
   const mainVariant = product.variants?.[0];
   const price = mainVariant?.price;
@@ -32,18 +33,20 @@ const ProductCard = ({ product }: { product: ProductProps }) => {
     e.stopPropagation();
 
     if (mainVariant) {
-        dispatch(addToCart({
-            id: mainVariant.id,
-            productId: product.id,
-            title: product.title,
-            price: Number(mainVariant.price), // Ensure number
-            image: image,
-            color: mainVariant.color,
-            size: mainVariant.size,
-            quantity: 1,
-            maxStock: mainVariant.inventory?.quantity || 0
-        }));
-        alert("Added to cart!");
+      // @ts-ignore
+      dispatch(addItemToCart({
+        id: mainVariant.id,
+        productId: product.id,
+        title: product.title,
+        slug: product.slug,
+        price: Number(mainVariant.price), // Ensure number
+        image: image,
+        color: mainVariant.color,
+        size: mainVariant.size,
+        quantity: 1,
+        maxStock: mainVariant.inventory?.quantity || 0
+      }));
+      alert("Added to cart!");
     }
   };
 
@@ -51,20 +54,20 @@ const ProductCard = ({ product }: { product: ProductProps }) => {
     <div className="group cursor-pointer">
       <div className="relative overflow-hidden aspect-[3/4] bg-gray-100 mb-4">
         {/* Product Image - Clickable via Link */}
-        <Link to={`/product/${product.id}`}>
-            <img 
-                src={image} 
-                alt={product.title} 
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            />
+        <Link to={`/product/${product.slug}`}>
+          <img
+            src={image}
+            alt={product.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
         </Link>
-        
+
         {/* Quick Add Button (Appears on Hover) */}
-        <button 
-            onClick={handleAddToCart}
-            className="absolute bottom-4 right-4 bg-white p-3 rounded-full shadow-lg translate-y-12 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 hover:bg-black hover:text-white"
+        <button
+          onClick={handleAddToCart}
+          className="absolute bottom-4 right-4 bg-white p-3 rounded-full shadow-lg translate-y-12 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 hover:bg-black hover:text-white"
         >
-            <ShoppingCart size={20} />
+          <ShoppingCart size={20} />
         </button>
       </div>
 
@@ -72,7 +75,7 @@ const ProductCard = ({ product }: { product: ProductProps }) => {
       <div>
         <p className="text-xs text-gray-500 mb-1">{product.category.name}</p>
         <h3 className="font-medium text-gray-900 group-hover:text-gray-600 transition-colors">
-            <Link to={`/product/${product.id}`}>{product.title}</Link>
+          <Link to={`/product/${product.slug}`}>{product.title}</Link>
         </h3>
         <p className="mt-1 font-semibold text-gray-900">₹{price}</p>
       </div>

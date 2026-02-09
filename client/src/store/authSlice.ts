@@ -1,11 +1,12 @@
 // client/src/store/authSlice.ts
-import { createSlice} from '@reduxjs/toolkit';
+import { createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit'
 
 interface User {
   id: number;
   name: string;
   email: string;
+  phone: string;
   roles: string[];
   permissions: string[];
 }
@@ -34,7 +35,7 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       state.token = action.payload.token;
       state.isAuthenticated = true;
-      
+
       // Save to local storage so they stay logged in on refresh
       localStorage.setItem('user', JSON.stringify(action.payload.user));
       localStorage.setItem('token', action.payload.token);

@@ -8,10 +8,12 @@ const { PrismaClient } = require('@prisma/client');
 const masterRoutes = require('./routes/masterRoutes');
 const productRoutes = require('./routes/productRoutes');
 const orderRoutes = require('./routes/orderRoutes');
-const path = require('path'); 
+const path = require('path');
 const uploadRoutes = require('./routes/uploadRoutes');
 const adminRoutes = require('./routes/adminRoutes');
-const couponRoutes = require('./routes/couponRoutes');
+const cartRoutes = require('./routes/cartRoutes'); // Add this import
+const couponRoutes = require('./routes/couponRoutes'); // Restore this import
+
 const marketingRoutes = require('./routes/marketingRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const shipmentRoutes = require('./routes/shipmentRoutes');
@@ -42,6 +44,8 @@ app.get('/', (req, res) => {
 
 // Routes
 app.use('/api/auth', authRoutes);
+const userRoutes = require('./routes/userRoutes');
+app.use('/api/user', userRoutes);
 app.use('/api/master', masterRoutes);
 app.use('/api/products', productRoutes);
 app.get('/api', (req, res) => {
@@ -53,6 +57,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/upload', uploadRoutes);
 app.use('/api/admin', adminRoutes);
 
+app.use('/api/cart', cartRoutes); // Register new Cart Route
 app.use('/api/coupons', couponRoutes);
 app.use('/api/marketing', marketingRoutes);
 app.use('/api/payments', paymentRoutes);
@@ -70,7 +75,7 @@ async function main() {
     try {
         await prisma.$connect();
         console.log('✅ Database connected successfully');
-        
+
         app.listen(PORT, () => {
             console.log(`🚀 Server running on http://localhost:${PORT}`);
         });

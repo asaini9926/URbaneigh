@@ -42,7 +42,7 @@ exports.getPendingCODOrders = async (req, res) => {
 
     const total = await prisma.order.count({
       where: {
-        payment_method: "COD",
+        paymentMethod: "COD",
         status: "DELIVERED",
         payment: {
           status: { not: "REFUNDED" },
@@ -66,7 +66,7 @@ exports.getPendingCODOrders = async (req, res) => {
         customer_name: order.user.name,
         customer_phone: order.user.phone,
         amount: order.totalAmount,
-        delivered_at: order.delivered_at,
+        delivered_at: order.shipments?.[0]?.delivered_at || null,
         cod_payment_status: order.payment.status,
         payment_received: order.payment.status === "PAID",
       })),
@@ -93,9 +93,9 @@ exports.recordCODPaymentReceived = async (req, res) => {
       return res.status(404).json({ error: "Order not found" });
     }
 
-    if (order.payment_method !== "COD") {
+    if (order.paymentMethod !== "COD") {
       return res.status(400).json({
-        error: `This is not a COD order. Payment method: ${order.payment_method}`,
+        error: `This is not a COD order. Payment method: ${order.paymentMethod}`,
       });
     }
 
@@ -202,14 +202,19 @@ exports.getSettlementSummary = async (req, res) => {
     // Get all COD delivered orders in period
     const deliveredOrders = await prisma.order.findMany({
       where: {
-        payment_method: "COD",
+        paymentMethod: "COD",
         status: "DELIVERED",
-        delivered_at: {
-          gte: startDate,
-          lte: endDate,
+        shipments: {
+          some: {
+            status: "DELIVERED",
+            delivered_at: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
         },
       },
-      include: { payment: true },
+      include: { payment: true, shipments: true },
     });
 
     const totalOrders = deliveredOrders.length;
@@ -399,15 +404,21 @@ exports.generateReconciliationReport = async (req, res) => {
     // Get all COD orders in period
     const orders = await prisma.order.findMany({
       where: {
-        payment_method: "COD",
+        paymentMethod: "COD",
         status: "DELIVERED",
-        delivered_at: {
-          gte: startDate,
-          lte: endDate,
+        shipments: {
+          some: {
+            status: "DELIVERED",
+            delivered_at: {
+              gte: startDate,
+              lte: endDate,
+            },
+          },
         },
       },
       include: {
         payment: true,
+        shipments: true,
         user: {
           select: {
             id: true,
@@ -417,7 +428,7 @@ exports.generateReconciliationReport = async (req, res) => {
           },
         },
       },
-      orderBy: { delivered_at: "asc" },
+      orderBy: { createdAt: "asc" },
     });
 
     const report = {
@@ -437,7 +448,7 @@ exports.generateReconciliationReport = async (req, res) => {
         customer_name: order.user.name,
         customer_phone: order.user.phone,
         amount: order.totalAmount,
-        delivered_at: order.delivered_at.toISOString(),
+        delivered_at: order.shipments?.[0]?.delivered_at?.toISOString() || "",
         payment_status: order.payment.status,
       })),
     };
@@ -447,7 +458,7 @@ exports.generateReconciliationReport = async (req, res) => {
       let csv =
         "Order Number,Customer Name,Phone,Amount,Delivered At,Payment Status\n";
       report.orders.forEach((order) => {
-        csv += `${order.order_number},${order.customer_name},${order.customer_phone},${order.amount},${order.delivered_at},${order.payment_status}\n`;
+        csv += `${order.order_number},${order.customer_name},${order.customer_phone},${order.amount},${order.shipments?.[0]?.delivered_at || ""},${order.payment_status}\n`;
       });
       return res.setHeader("Content-Type", "text/csv").send(csv);
     }

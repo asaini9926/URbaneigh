@@ -53,8 +53,9 @@ exports.createOrder = async (req, res) => {
             });
         }
 
-        // Add Shipping logic (if > 999 free, else 99)
-        const shippingCost = totalAmount > 999 ? 0 : 99;
+        // Add Shipping logic (Free Delivery for all - Prod-3 requirement)
+        // logic: Display says 79 - 79, so effective cost is 0.
+        const shippingCost = 0;
         const finalTotal = totalAmount + shippingCost;
 
         const idempotencyKey = generateIdempotencyKey(userId, items);
@@ -171,7 +172,10 @@ exports.getMyOrders = async (req, res) => {
 // [ADMIN] Get All Orders (with filters later if needed)
 exports.getAllOrders = async (req, res) => {
     try {
-        const { status, paymentMethod, startDate, endDate } = req.query;
+        const { status, paymentMethod, startDate, endDate, page = 1, limit = 10 } = req.query;
+
+        const skip = (page - 1) * limit;
+        const take = parseInt(limit);
 
         let whereClause = {};
 
@@ -184,17 +188,30 @@ exports.getAllOrders = async (req, res) => {
             if (endDate) whereClause.createdAt.lte = new Date(endDate);
         }
 
-        const orders = await prisma.order.findMany({
-            where: whereClause,
-            include: {
-                user: { select: { id: true, name: true, email: true, phone: true } },
-                payment: true,
-                items: { include: { variant: { include: { product: true } } } },
-                shipments: true
-            },
-            orderBy: { createdAt: 'desc' }
+        const [orders, total] = await Promise.all([
+            prisma.order.findMany({
+                where: whereClause,
+                skip,
+                take,
+                include: {
+                    user: { select: { id: true, name: true, email: true, phone: true } },
+                    payment: true,
+                    items: { include: { variant: { include: { product: true } } } },
+                    shipments: true
+                },
+                orderBy: { createdAt: 'desc' }
+            }),
+            prisma.order.count({ where: whereClause })
+        ]);
+
+        res.json({
+            data: orders,
+            meta: {
+                total,
+                page: parseInt(page),
+                pages: Math.ceil(total / take)
+            }
         });
-        res.json(orders);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

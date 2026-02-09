@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import api from '../api/axios';
 import Navbar from '../components/Navbar';
 
 interface OrderItem {
@@ -49,14 +50,13 @@ export default function OrderDetails() {
   const fetchOrderDetails = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await axios.get(
-        `http://localhost:5000/api/orders/${orderId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      // Use configured api instance
+      const response = await api.get(`/orders/${orderId}`);
       setOrder(response.data.order);
     } catch (err: any) {
+      console.error(err);
       setError(err.response?.data?.error || 'Failed to load order details');
+      // If unauthorized, redirect might be handled by interceptor, but good to check
     } finally {
       setLoading(false);
     }
@@ -138,6 +138,10 @@ export default function OrderDetails() {
               <div className="text-right">
                 <p className="text-sm text-gray-600">Total Amount</p>
                 <p className="text-2xl font-bold text-gray-900">₹{order.totalAmount}</p>
+                <div className="text-xs text-gray-500 mt-1">
+                  <p>Includes Delivery: ₹79</p>
+                  <p className="text-green-600">Delivery Discount: -₹79</p>
+                </div>
               </div>
             </div>
 
@@ -157,20 +161,18 @@ export default function OrderDetails() {
                     className="flex flex-col items-center flex-1"
                   >
                     <div
-                      className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold mb-2 ${
-                        currentStep >= idx
-                          ? 'bg-green-500 text-white'
-                          : 'bg-gray-200 text-gray-600'
-                      }`}
+                      className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold mb-2 ${currentStep >= idx
+                        ? 'bg-green-500 text-white'
+                        : 'bg-gray-200 text-gray-600'
+                        }`}
                     >
                       ✓
                     </div>
                     <p className="text-xs text-gray-600 text-center">{item.label}</p>
                     {idx < 4 && (
                       <div
-                        className={`h-1 w-full mt-2 ${
-                          currentStep > idx ? 'bg-green-500' : 'bg-gray-200'
-                        }`}
+                        className={`h-1 w-full mt-2 ${currentStep > idx ? 'bg-green-500' : 'bg-gray-200'
+                          }`}
                       ></div>
                     )}
                   </div>

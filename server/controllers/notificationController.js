@@ -118,7 +118,7 @@ exports.sendDeliveryNotification = async (orderId) => {
   try {
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { user: true },
+      include: { user: true, shipments: true },
     });
 
     if (!order) return false;
@@ -131,7 +131,7 @@ exports.sendDeliveryNotification = async (orderId) => {
       
       <h3>Order Details</h3>
       <p><strong>Order Number:</strong> ${order.orderNumber}</p>
-      <p><strong>Delivered Date:</strong> ${new Date(order.delivered_at).toLocaleDateString()}</p>
+      <p><strong>Delivered Date:</strong> ${order.shipments?.[0]?.delivered_at ? new Date(order.shipments[0].delivered_at).toLocaleDateString() : 'N/A'}</p>
       <p><strong>Total Amount:</strong> ₹${order.totalAmount}</p>
       
       <p>If you're not satisfied with your purchase, you can return it within 14 days.</p>
@@ -220,7 +220,8 @@ exports.getUserNotifications = async (req, res) => {
         orderNumber: true,
         status: true,
         createdAt: true,
-        delivered_at: true,
+        createdAt: true,
+        shipments: { select: { delivered_at: true } },
       },
       skip: skip,
       take: parseInt(limit),
@@ -232,7 +233,7 @@ exports.getUserNotifications = async (req, res) => {
       type: 'ORDER',
       title: `Order ${order.orderNumber}`,
       message: getOrderStatusMessage(order.status),
-      timestamp: order.status === 'DELIVERED' ? order.delivered_at : order.createdAt,
+      timestamp: order.status === 'DELIVERED' ? order.shipments?.[0]?.delivered_at : order.createdAt,
       read: false,
     }));
 

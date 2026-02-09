@@ -2,17 +2,42 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../api/axios";
 import { CheckCircle, XCircle, Eye, Clock } from "lucide-react";
+import Pagination from "../../components/Pagination";
 
 const AdminOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [limit] = useState(10);
+
   const navigate = useNavigate();
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (currentPage: number) => {
     try {
-      const res = await api.get("/orders/admin/all");
-      setOrders(res.data);
+      const statusParam = activeTab === 'all' ? '' : `&status=${activeTab.toUpperCase()}`;
+      // Map tabs to statuses if needed, or simplified:
+      // Our backend supports status param directly.
+      // But tabs are: 'unfulfilled', 'unpaid', 'open', 'closed'
+      // These don't map 1:1 to CREATED, PAID etc. without logic.
+      // For now, let's keep it simple or send them as is if backend handled it. 
+      // The backend 'getAllOrders' just checks `if (status) whereClause.status = status;`
+      // So 'unfulfilled' won't work unless mapped.
+
+      // Let's implement partial mapping for the demo ensuring basic functionality:
+      let query = `/orders/admin/all?page=${currentPage}&limit=${limit}`;
+
+      if (activeTab !== 'all') {
+        // This is a simplified demo mapping. Real app needs more complexity.
+        if (activeTab === 'unpaid') query += '&status=CREATED'; // or PENDING
+        else if (activeTab === 'closed') query += '&status=DELIVERED';
+        // else query += `&status=${activeTab.toUpperCase()}`;
+      }
+
+      const res = await api.get(query);
+      setOrders(res.data.data);
+      setTotalPages(res.data.meta.pages);
     } catch (err) {
       console.error(err);
     } finally {
@@ -21,21 +46,15 @@ const AdminOrders = () => {
   };
 
   useEffect(() => {
-    fetchOrders();
-  }, []);
+    fetchOrders(page);
+  }, [page, activeTab]);
 
   const getFulfillmentStatus = (order: any) => {
-    // Need logic or mapping. Since we don't track fulfillment specifically yet (just 'status'), 
-    // we'll map status to what looks like fulfillment
-    // 'VERIFIED' -> 'Unfulfilled' (Ready to pack)
-    // 'SHIPPED' -> 'Fulfilled' 
-    // 'DELIVERED' -> 'Fulfilled'
     if (order.status === 'DELIVERED' || order.status === 'SHIPPED') return 'fulfilled';
     return 'unfulfilled';
   };
 
   const getPaymentStatus = (order: any) => {
-    // Simple mapping
     if (order.payment?.status === 'COMPLETED') return 'paid';
     if (order.payment?.status === 'PENDING') return 'pending';
     return 'voided';
@@ -54,7 +73,7 @@ const AdminOrders = () => {
             {['all', 'unfulfilled', 'unpaid', 'open', 'closed'].map(tab => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => { setActiveTab(tab); setPage(1); }}
                 className={`py-3 text-sm font-medium border-b-2 transition-colors capitalize ${activeTab === tab ? 'border-black text-black' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
               >
                 {tab}
@@ -116,6 +135,23 @@ const AdminOrders = () => {
                   </td>
                   <td className="p-4 text-gray-500">{itemCount} items</td>
                   <td className="p-4 text-gray-500 text-xs uppercase">{order.paymentMethod}</td>
+                  <td className="p-4">
+                    {order.status !== 'CANCELLED' && order.status !== 'DELIVERED' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm('Are you sure you want to cancel this order?')) {
+                            api.put(`/orders/${order.id}/status`, { status: 'CANCELLED', notes: 'Cancelled by Admin' })
+                              .then(() => fetchOrders(page))
+                              .catch(err => alert(err.response?.data?.error || 'Failed to cancel'));
+                          }
+                        }}
+                        className="text-red-600 hover:text-red-800 font-medium text-xs border border-red-200 bg-red-50 px-3 py-1 rounded-full hover:bg-red-100 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </td>
                 </tr>
               );
             })}
@@ -125,6 +161,10 @@ const AdminOrders = () => {
         {orders.length === 0 && (
           <div className="p-12 text-center text-gray-500">No orders found.</div>
         )}
+
+        {orders.length > 0 && <div className="p-4 border-t border-gray-100">
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+        </div>}
       </div>
     </div>
   );

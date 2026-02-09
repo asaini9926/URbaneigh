@@ -16,10 +16,10 @@ datasource db {
 
 model User {
   id            Int       @id @default(autoincrement())
-  name          String
-  email         String    @unique
-  phone         String?
-  password_hash String
+  name          String?
+  email         String?   @unique
+  phone         String?   @unique
+  password_hash String?
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -110,6 +110,7 @@ model Product {
   socialMediaDescription String? @db.Text
   categoryId  Int
   brandId     Int
+  slug        String           @unique
   status      ProductStatus    @default(DRAFT)
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -266,6 +267,9 @@ model Payment {
   is_remitted      Boolean       @default(false)
   remitted_at      DateTime?
   remit_reference  String?
+
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   order            Order         @relation(fields: [orderId], references: [id])
 

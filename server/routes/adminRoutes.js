@@ -11,6 +11,11 @@ router.get('/users', protect, checkPermission('user.manage_roles'), adminControl
 router.put('/users/role', protect, checkPermission('user.manage_roles'), adminController.updateUserRole);
 router.post('/users', protect, checkPermission('user.manage_roles'), adminController.createUser);
 router.delete('/users/:id', protect, checkPermission('user.manage_roles'), adminController.deleteUser);
+
+// Enhanced Customer & Cart Routes
+router.get('/customers', protect, checkPermission('user.manage_roles'), adminController.getCustomers);
+router.get('/carts', protect, checkPermission('user.manage_roles'), adminController.getAllCarts);
+
 router.get('/stats', protect, checkPermission('dashboard.view'), adminController.getDashboardStats);
 
 module.exports = router;

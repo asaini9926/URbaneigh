@@ -2,29 +2,58 @@ const TermsPolicy = () => {
   return (
     <div className="bg-white min-h-screen py-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 prose prose-lg text-gray-700">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Terms And Conditions</h1>
-        
-        <p>By using Urbaneigh (urbaneigh.com), the user has unconditionally accepted the terms and conditions of use as given here under and/or elsewhere in the site.</p>
-        <p>In order to use the urbaneigh.com, the user have accepted the following terms and conditions given below. We reserve the right to add, delete, alter or modify these terms and conditions at any time.</p>
-        
-        <h3 className="font-bold text-black mt-6">General Terms</h3>
+        <h1 className="text-3xl font-bold text-gray-900 mb-8">Terms and Conditions</h1>
+        <p className="text-gray-600 mb-6">Last updated: {new Date().toLocaleDateString()}</p>
+
+        <h3 className="font-bold text-black mt-6">1. Acceptance of Terms</h3>
+        <p>By accessing or using the website urbaniegh.com ("Service"), you agree to be bound by these Terms and Conditions ("Terms"). If you disagree with any part of the terms, then you may not access the Service. These terms constitute a legally binding agreement between you and Urbaneigh Fashions.</p>
+
+        <h3 className="font-bold text-black mt-6">2. Definitions</h3>
         <ul className="list-disc pl-5 space-y-2">
-            <li>The user may carefully read all the information on products and services as provided in relevant sections.</li>
-            <li>Urbaneigh acts only as a facilitator to facilitate transactions between user and vendors through Urbaneigh. We are not responsible for any loses, expenses, quality of products or services, damages and/or taxes incurred by users in the use of the facility.</li>
-            <li>Urbaneigh will not be responsible for any damage suffered by users from use of the services on Urbaneigh. This without limitation includes loss of revenue or data resulting from delays, non-deliveries, missed deliveries, or service interruptions.</li>
-            <li>All products are checked, screened and assured by the vendors to ensure that the products are of the standard, quality, design, composition, style or model that they are representative of.</li>
-            <li>The prices and availability of products are subject to change without prior notice at the sole discretion of Urbaneigh.</li>
-            <li>Request for cancellations of orders once placed on urbaneigh.com shall not be entertained after 12 hours of placing the order.</li>
+          <li><strong>"Company", "We", "Us", "Our"</strong> refers to Urbaneigh Fashions, the owner of the website.</li>
+          <li><strong>"User", "You"</strong> refers to the person accessing the website and accepting the Company's terms and conditions.</li>
+          <li><strong>"Products"</strong> refers to the clothing and apparel items available for purchase on the website.</li>
+          <li><strong>"Service"</strong> refers to the website and the services provided by Urbaneigh Fashions.</li>
         </ul>
 
-        <h3 className="font-bold text-black mt-6">Liability & Fraud</h3>
+        <h3 className="font-bold text-black mt-6">3. User Eligibility & Obligations</h3>
+        <p>The Service is available only to persons who can form legally binding contracts under the Indian Contract Act, 1872. Persons who are "incompetent to contract" within the meaning of the Indian Contract Act, 1872 including minors, un-discharged insolvents, etc. are not eligible to use the Service. If you are a minor i.e. under the age of above 15 years, you shall not register as a User of the website and shall not transact on or use the website.</p>
+        <p>You agree not to use the Service for any unlawful purpose or in any way that interrupts, damages, or impairs the service.</p>
+
+        <h3 className="font-bold text-black mt-6">4. Pricing & Payments</h3>
         <ul className="list-disc pl-5 space-y-2">
-            <li>We reserve the right to refuse or cancel any order placed for a product that is listed at an incorrect price or for any other reason.</li>
-            <li>If a non-delivery or late delivery occurs due to a mistake by the user (i.e. wrong or incomplete name or address or recipient not available) any extra cost spent by Urbaneigh for re-delivery shall be claimed from the user placing the order.</li>
-            <li>The User agrees to give accurate, authentic and true information. urbaneigh.com reserves the right to confirm and validate the information.</li>
-            <li>Urbaneigh will not be liable for any type or kind of credit card fraud. The liability to use a card fraudulently will be on the user.</li>
-            <li>Urbaneigh shall not entertain any complaints after 10 days, once the order is delivered.</li>
+          <li>All prices listed on the website are in Indian Rupees (INR) and are inclusive of applicable taxes (GST), unless stated otherwise.</li>
+          <li>We reserve the right to modify the prices of our products at any time without prior notice.</li>
+          <li>Payments are processed through secure third-party payment gateways (Paytm). By initiating a transaction, you agree to the terms and conditions of the payment gateway service provider.</li>
+          <li>In the event of a pricing error, we reserve the right to cancel any orders placed for the product listed at the incorrect price.</li>
         </ul>
+
+        <h3 className="font-bold text-black mt-6">5. Intellectual Property Rights</h3>
+        <p>The Service and its original content, features, and functionality are and will remain the exclusive property of Urbaneigh Fashions and its licensors. The Service is protected by copyright, trademark, and other laws of both India and foreign countries. Our trademarks and trade dress may not be used in connection with any product or service without the prior written consent of Urbaneigh Fashions.</p>
+
+        <h3 className="font-bold text-black mt-6">6. Limitation of Liability</h3>
+        <p>In no event shall Urbaneigh Fashions, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses, resulting from (i) your access to or use of or inability to access or use the Service; (ii) any conduct or content of any third party on the Service; (iii) any content obtained from the Service; and (iv) unauthorized access, use or alteration of your transmissions or content.</p>
+
+        <h3 className="font-bold text-black mt-6">7. Third-Party Links / Services Disclaimer</h3>
+        <p>Our Service may contain links to third-party web sites or services that are not owned or controlled by Urbaneigh Fashions. We have no control over, and assume no responsibility for, the content, privacy policies, or practices of any third-party web sites or services. You further acknowledge and agree that Urbaneigh Fashions shall not be responsible or liable, directly or indirectly, for any damage or loss caused or alleged to be caused by or in connection with use of or reliance on any such content, goods or services available on or through any such web sites or services.</p>
+
+        <h3 className="font-bold text-black mt-6">8. Termination Rights</h3>
+        <p>We may terminate or suspend your account immediately, without prior notice or liability, for any reason whatsoever, including without limitation if you breach the Terms. Upon termination, your right to use the Service will immediately cease.</p>
+
+        <h3 className="font-bold text-black mt-6">9. Governing Law & Jurisdiction</h3>
+        <p>These Terms shall be governed and construed in accordance with the laws of India, without regard to its conflict of law provisions.</p>
+        <p>Any dispute arising out of or in connection with these terms, including any question regarding its existence, validity, or termination, shall be subject to the exclusive jurisdiction of the <strong>District Courts of Jaipur, Rajasthan</strong>.</p>
+
+        <h3 className="font-bold text-black mt-6">10. Modification Clause</h3>
+        <p>We reserve the right, at our sole discretion, to modify or replace these Terms at any time. By continuing to access or use our Service after those revisions become effective, you agree to be bound by the revised terms.</p>
+
+        <h3 className="font-bold text-black mt-6">Contact Us</h3>
+        <p>If you have any questions about these Terms, please contact us at:</p>
+        <p className="mt-2 text-gray-600">
+          <strong>Urbaneigh Fashions</strong><br />
+          Email: urbaneigh@gmail.com<br />
+          Phone: +91 70219 55071
+        </p>
       </div>
     </div>
   );

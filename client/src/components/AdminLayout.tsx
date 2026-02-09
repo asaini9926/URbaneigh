@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ShoppingBag, Package, Users, LogOut, Ticket, Megaphone, BarChart3, Video } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, ShoppingCart, Package, Users, LogOut, Ticket, Megaphone, BarChart3, Video } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { logout } from '../store/authSlice';
 import { ShieldAlert } from 'lucide-react'; // Add Icon
@@ -18,6 +18,7 @@ const AdminLayout = () => {
     { icon: ShoppingBag, label: 'Orders', path: '/admin/orders' },
     { icon: Package, label: 'Products', path: '/admin/products' },
     { icon: Users, label: 'Customers', path: '/admin/users' },
+    { icon: ShoppingCart, label: 'Active Carts', path: '/admin/carts' },
     { icon: FolderTree, label: 'Categories', path: '/admin/categories' },
     { icon: Tags, label: 'Brands', path: '/admin/brands' },
     { icon: Ticket, label: 'Coupons', path: '/admin/coupons' },
@@ -25,7 +26,6 @@ const AdminLayout = () => {
     { icon: Video, label: 'Videos', path: '/admin/videos' },
     { icon: Ticket, label: 'Returns', path: '/admin/returns' },
     { icon: ShoppingBag, label: 'COD Reconciliation', path: '/admin/reconciliation' },
-    { icon: BarChart3, label: 'Analytics', path: '/admin/analytics' },
     { icon: Users, label: 'Subscribers', path: '/admin/subscribers' },
   ];
 
@@ -35,8 +35,8 @@ const AdminLayout = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex">
-      {/* Sidebar */}
-      <aside className="w-64 bg-black text-white min-h-screen fixed left-0 top-0 hidden md:flex flex-col">
+      {/* Sidebar - Fixed height with scroll */}
+      <aside className="w-64 bg-black text-white h-screen fixed left-0 top-0 hidden md:flex flex-col overflow-y-auto z-10 transition-all custom-scrollbar">
         <div className="p-6 border-b border-gray-800">
           <h1 className="text-xl font-bold tracking-wider">URBANIEGH <span className="text-xs text-gray-400 block">ADMIN PANEL</span></h1>
         </div>
