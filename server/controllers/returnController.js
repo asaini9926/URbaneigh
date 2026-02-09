@@ -68,8 +68,8 @@ exports.createReturnRequest = async (req, res) => {
       return res.status(400).json({ error: 'At least one item must be selected for return' });
     }
 
-    // Check if order is within return window (14 days)
-    const returnWindowDays = 14;
+    // Check if order is within return window (3 days)
+    const returnWindowDays = 3;
     const orderDate = new Date(order.created_at);
     const currentDate = new Date();
     const daysDiff = Math.floor((currentDate - orderDate) / (1000 * 60 * 60 * 24));
@@ -78,7 +78,7 @@ exports.createReturnRequest = async (req, res) => {
       return res.status(400).json({
         error: `Return window expired. Orders can be returned within ${returnWindowDays} days of delivery.`,
         days_elapsed: daysDiff,
-        return_deadline: new Date(new Date(order.delivered_at).getTime() + returnWindowDays * 24 * 60 * 60 * 1000),
+        return_deadline: new Date(new Date(shipment.delivered_at).getTime() + returnWindowDays * 24 * 60 * 60 * 1000),
       });
     }
 

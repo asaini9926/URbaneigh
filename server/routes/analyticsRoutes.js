@@ -20,6 +20,10 @@ router.use(protect, checkPermission(['SuperAdmin', 'Admin']));
 // Get order metrics
 router.get('/orders', analyticsController.getOrderMetrics);
 
+// Get revenue metrics
+router.get('/revenue', analyticsController.getRevenueMetrics);
+
+
 // Get return analytics
 router.get('/returns', analyticsController.getReturnAnalytics);
 
@@ -31,6 +35,12 @@ router.get('/payments', analyticsController.getPaymentAnalytics);
 
 // Get settlement analytics
 router.get('/settlement', analyticsController.getSettlementAnalytics);
+
+// Get product & inventory metrics
+router.get('/products', analyticsController.getProductMetrics);
+
+// Get fulfillment & ops metrics
+router.get('/fulfillment', analyticsController.getFulfillmentMetrics);
 
 // Get KPI summary
 router.get('/kpi', analyticsController.getKPISummary);

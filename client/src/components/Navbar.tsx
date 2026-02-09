@@ -179,7 +179,7 @@ const Navbar = () => {
                 {searchSuggestions.map((product) => (
                   <Link
                     key={product.id}
-                    to={`/product/${product.id}`}
+                    to={`/product/${product.slug}`}
                     onClick={() => {
                       setShowSearch(false);
                       setSearchSuggestions([]);
@@ -244,17 +244,24 @@ const Navbar = () => {
                     </Link>
                   )}
                   <Link
-                    to="/notifications"
+                    to="/profile"
                     className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    🔔 Notifications
+                    My Account
                   </Link>
                   <Link
                     to="/order-history"
                     className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    Order History
+                    My orders
                   </Link>
+                  <Link
+                    to="/notifications"
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    🔔 Notifications
+                  </Link>
+
                   <button
                     onClick={handleLogout}
                     className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50"

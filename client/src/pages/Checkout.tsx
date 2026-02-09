@@ -31,6 +31,13 @@ const Checkout = () => {
   const [discount, setDiscount] = useState(0);
   const [appliedCoupon, setAppliedCoupon] = useState("");
 
+  // Prod-3 Features State
+  const [isSelfDelivery, setIsSelfDelivery] = useState(false);
+  const [canSelfDeliver, setCanSelfDeliver] = useState(false);
+  const [locating, setLocating] = useState(false);
+
+  const [saveAddress, setSaveAddress] = useState(false);
+
   const [formData, setFormData] = useState({
     fullName: user?.name || "",
     address: "",
@@ -38,6 +45,120 @@ const Checkout = () => {
     pincode: "",
     phone: "",
   });
+
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
+
+  // Fetch User Addresses on Mount
+  useEffect(() => {
+    if (user) {
+      api.get('/user/profile')
+        .then(res => {
+          const addresses = res.data.addresses || [];
+          setSavedAddresses(addresses);
+
+          // Auto-fill default
+          const defaultAddr = addresses.find((a: any) => a.isDefault) || addresses[0];
+          if (defaultAddr) {
+            fillFormData(defaultAddr);
+          }
+        })
+        .catch(err => console.error("Failed to load addresses", err));
+    }
+  }, [user]);
+
+  const fillFormData = (addr: any) => {
+    setSelectedAddressId(addr.id);
+    setFormData({
+      fullName: addr.name || user?.name || "",
+      address: addr.fullAddress,
+      city: addr.city,
+      pincode: addr.pincode,
+      phone: user?.phone || ""
+    });
+  };
+
+  // Helper to handle selection
+  const handleSelectAddress = (addr: any) => {
+    fillFormData(addr);
+  };
+
+  // Store Coords
+  const STORE_COORDS = { latitude: 26.992430391922113, longitude: 75.7632824023283 };
+
+  // Calculate Distance (Haversine)
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in km
+  };
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser");
+      return;
+    }
+
+    setLocating(true);
+    setSelectedAddressId(null); // Clear selection as we are using a new custom location
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+
+        // 1. Check Distance for Self Delivery
+        const dist = calculateDistance(latitude, longitude, STORE_COORDS.latitude, STORE_COORDS.longitude);
+        if (dist <= 15) {
+          setCanSelfDeliver(true);
+        } else {
+          setCanSelfDeliver(false);
+          setIsSelfDelivery(false);
+        }
+
+        // 2. Reverse Geocode (Google Maps API)
+        try {
+          const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+          if (apiKey) {
+            const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`);
+            const data = await res.json();
+            if (data.results && data.results.length > 0) {
+              const addrComponents = data.results[0].address_components;
+              let city = "";
+              let pincode = "";
+
+              addrComponents.forEach((comp: any) => {
+                if (comp.types.includes("locality")) city = comp.long_name;
+                if (comp.types.includes("postal_code")) pincode = comp.long_name;
+              });
+
+              setFormData(prev => ({
+                ...prev,
+                address: data.results[0].formatted_address,
+                city: city || prev.city,
+                pincode: pincode || prev.pincode
+              }));
+            }
+          } else {
+            alert("Google Maps API Key not found. Please enter address manually.");
+          }
+        } catch (error) {
+          console.error("Geocoding failed", error);
+        } finally {
+          setLocating(false);
+        }
+      },
+      (error) => {
+        console.error(error);
+        alert("Unable to retrieve your location");
+        setLocating(false);
+      }
+    );
+  };
 
   // Load Paytm script on component mount
   useEffect(() => {
@@ -80,8 +201,11 @@ const Checkout = () => {
 
   if (items.length === 0) return null;
 
-  const shipping = totalAmount > 999 ? 0 : 99;
-  const finalTotal = totalAmount + shipping - discount;
+  // Prod-3: Delivery is free (0), but we show 79 - 79 logic
+  const shippingChargeDisplay = 79;
+  const shippingDiscount = 79; // Logic: Free for you
+  // Ideally, total = totalAmount + 79 - 79 - couponDiscount
+  const finalTotal = totalAmount - discount; // Net effect is 0 shipping
 
   const handlePayWithPaytm = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,6 +218,7 @@ const Checkout = () => {
         shippingAddress: formData,
         paymentMethod: "PAYTM",
         totalAmount: finalTotal,
+        isSelfPickup: isSelfDelivery // Pass this flag
       };
 
       const response = await api.post("/payments/initiate", orderData);
@@ -166,11 +291,30 @@ const Checkout = () => {
         items: items.map((i) => ({ id: i.id, quantity: i.quantity })),
         shippingAddress: formData,
         paymentMethod: "COD",
+        isSelfPickup: isSelfDelivery
       };
 
       const res = await api.post("/orders", orderData);
 
+
+
       if (res.status === 201) {
+        // Save Address if requested
+        if (saveAddress && !selectedAddressId) {
+          try {
+            await api.post('/user/address', {
+              name: formData.fullName,
+              fullAddress: formData.address,
+              city: formData.city,
+              pincode: formData.pincode,
+              state: 'N/A', // Default or derived
+              isDefault: savedAddresses.length === 0
+            });
+          } catch (err) {
+            console.error("Failed to save address silently", err);
+          }
+        }
+
         alert(`Order Placed! ID: ${res.data.orderNumber}`);
         if (!isDirectBuy) {
           dispatch(clearCart());
@@ -207,10 +351,58 @@ const Checkout = () => {
           <div className="space-y-8">
             {/* 1. Shipping Address */}
             <div className="bg-white p-6 rounded-lg shadow-sm">
-              <div className="flex items-center gap-3 mb-6">
-                <Truck className="text-black" />
-                <h2 className="text-xl font-bold">Shipping Address</h2>
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-3">
+                  <Truck className="text-black" />
+                  <h2 className="text-xl font-bold">Shipping Address</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleUseCurrentLocation}
+                  disabled={locating}
+                  className="text-sm bg-gray-100 px-3 py-1.5 rounded-md hover:bg-gray-200 text-gray-700 flex items-center gap-2 transition"
+                >
+                  {locating ? <Loader size={14} className="animate-spin" /> : '📍 Use Current Location'}
+                </button>
               </div>
+
+              {/* Saved Addresses Selector */}
+              <div className="mb-6">
+                <p className="text-sm font-semibold text-gray-700 mb-2">Saved Addresses:</p>
+                {savedAddresses.length > 0 ? (
+                  <div className="grid grid-cols-1 gap-3">
+                    {savedAddresses.map((addr) => (
+                      <div
+                        key={addr.id}
+                        onClick={() => handleSelectAddress(addr)}
+                        className={`p-3 border rounded-md cursor-pointer flex items-center justify-between transition-colors ${selectedAddressId === addr.id ? 'border-black bg-gray-50 ring-1 ring-black' : 'border-gray-200 hover:border-gray-300'}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedAddressId === addr.id ? 'border-black' : 'border-gray-400'}`}>
+                            {selectedAddressId === addr.id && <div className="w-2 h-2 rounded-full bg-black"></div>}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            <span className="font-bold text-gray-800">{addr.name}</span> - {addr.fullAddress}, {addr.city}
+                          </div>
+                        </div>
+                        {addr.isDefault && <span className="text-[10px] bg-gray-200 px-2 py-0.5 rounded text-gray-600">Default</span>}
+                      </div>
+                    ))}
+                    <div
+                      onClick={() => { setSelectedAddressId(null); setFormData(prev => ({ ...prev, address: "", city: "", pincode: "" })); }}
+                      className={`p-3 border rounded-md cursor-pointer flex items-center gap-3 text-sm ${selectedAddressId === null ? 'border-black bg-gray-50 ring-1 ring-black' : 'border-gray-200'}`}
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedAddressId === null ? 'border-black' : 'border-gray-400'}`}>
+                        {selectedAddressId === null && <div className="w-2 h-2 rounded-full bg-black"></div>}
+                      </div>
+                      <span>+ Add New Address</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 italic">No saved addresses found.</p>
+                )}
+              </div>
+
               <div className="grid grid-cols-1 gap-4">
                 <input
                   required
@@ -260,6 +452,40 @@ const Checkout = () => {
                   }
                 />
               </div>
+
+              {/* Save Address Checkbox */}
+              <div className="mt-2">
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={saveAddress}
+                    onChange={(e) => setSaveAddress(e.target.checked)}
+                    className="rounded"
+                  />
+                  Save this address for future
+                </label>
+              </div>
+
+              {/* Self Delivery Option */}
+              {canSelfDeliver && (
+                <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isSelfDelivery}
+                      onChange={(e) => setIsSelfDelivery(e.target.checked)}
+                      className="w-5 h-5 accent-green-600 rounded"
+                    />
+                    <span className="ml-3 font-medium text-green-800">
+                      I will pick up the order myself (Self Delivery)
+                    </span>
+                  </label>
+                  <p className="text-xs text-green-700 mt-1 ml-8">
+                    Store Location: New Loah Mandi Road, Harmada (Within 15km of you)
+                  </p>
+                </div>
+              )}
+
             </div>
 
             {/* Coupon Input */}
@@ -312,8 +538,8 @@ const Checkout = () => {
                 {/* COD Option */}
                 <label
                   className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all ${paymentMethod === "COD"
-                      ? "border-black bg-gray-50"
-                      : "border-gray-200"
+                    ? "border-black bg-gray-50"
+                    : "border-gray-200"
                     }`}
                 >
                   <input
@@ -331,8 +557,8 @@ const Checkout = () => {
                 {/* Paytm Option */}
                 <label
                   className={`flex items-center p-4 border rounded-lg cursor-pointer transition-all ${paymentMethod === "PAYTM"
-                      ? "border-black bg-gray-50"
-                      : "border-gray-200"
+                    ? "border-black bg-gray-50"
+                    : "border-gray-200"
                     }`}
                 >
                   <input
@@ -386,13 +612,17 @@ const Checkout = () => {
                 <span>Subtotal</span>
                 <span>₹{totalAmount}</span>
               </div>
-              <div className="flex justify-between">
-                <span>Shipping</span>
-                <span>{shipping === 0 ? "Free" : `₹${shipping}`}</span>
+              <div className="flex justify-between text-gray-600">
+                <span>Delivery Charge</span>
+                <span>₹{shippingChargeDisplay}</span>
+              </div>
+              <div className="flex justify-between text-green-600">
+                <span>Offer For You</span>
+                <span>-₹{shippingDiscount}</span>
               </div>
               {discount > 0 && (
                 <div className="flex justify-between text-green-600">
-                  <span>Discount</span>
+                  <span>Coupon Discount</span>
                   <span>-₹{discount}</span>
                 </div>
               )}

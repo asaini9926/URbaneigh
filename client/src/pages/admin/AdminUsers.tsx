@@ -1,35 +1,25 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import api from "../../api/axios";
-import { User, Trash2, Plus, X } from "lucide-react";
+import { User, Trash2, ShoppingBag, ShoppingCart } from "lucide-react";
+import Pagination from "../../components/Pagination";
 
 const AdminUsers = () => {
   const [users, setUsers] = useState([]);
-  const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // State for toggling the form
-  const [showAddForm, setShowAddForm] = useState(false);
-
-  // State for the new user input
-  const [newUser, setNewUser] = useState({
-    name: "",
-    email: "",
-    password: "",
-    roleId: "",
-  });
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [limit] = useState(10);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchData(page);
+  }, [page]);
 
-  const fetchData = async () => {
+  const fetchData = async (currentPage: number) => {
     try {
-      const [userRes, roleRes] = await Promise.all([
-        api.get("/admin/users"),
-        api.get("/admin/roles"),
-      ]);
-      setUsers(userRes.data);
-      setRoles(roleRes.data);
+      // Fetching Filtered Customers ONLY
+      const res = await api.get(`/admin/customers?page=${currentPage}&limit=${limit}`);
+      setUsers(res.data.data);
+      setTotalPages(res.data.meta.pages);
     } catch (err) {
       console.error(err);
     } finally {
@@ -37,195 +27,87 @@ const AdminUsers = () => {
     }
   };
 
-  // 1. Create User Function
-  const handleCreateUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await api.post("/admin/users", newUser);
-      alert("User Created Successfully!");
-
-      // Reset and close form
-      setShowAddForm(false);
-      setNewUser({ name: "", email: "", password: "", roleId: "" });
-
-      // Refresh list
-      fetchData();
-    } catch (err: any) {
-      alert(err.response?.data?.error || "Failed to create user");
-    }
-  };
-
-  // 2. Delete User Function
   const handleDeleteUser = async (id: number) => {
     if (!window.confirm("Are you sure? This will delete the user permanently."))
       return;
     try {
       await api.delete(`/admin/users/${id}`);
-      fetchData(); // Refresh list
+      fetchData(page); // Refresh list
     } catch (err) {
       alert("Delete failed");
     }
   };
 
-  // 3. Change Role Function
-  const handleRoleChange = async (userId: number, newRoleId: string) => {
-    // Optimistic UI Update (Change it instantly on screen)
-    const updatedUsers = users.map((u: any) =>
-      u.id === userId ? { ...u, roleId: Number(newRoleId) } : u
-    );
-    setUsers(updatedUsers as any);
-
-    try {
-      await api.put("/admin/users/role", {
-        userId,
-        roleId: newRoleId,
-      });
-    } catch (err) {
-      alert("Failed to update role");
-      fetchData(); // Revert on error
-    }
-  };
-
-  if (loading) return <div>Loading...</div>;
+  if (loading) return <div>Loading Customers...</div>;
 
   return (
     <div>
-      {/* HEADER: Title + Add Button */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900">
-          Employees & Customers
+          Customers
         </h1>
-        <button
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="bg-black text-white px-4 py-2 rounded-md flex items-center gap-2 hover:bg-gray-800 transition-colors"
-        >
-          {showAddForm ? <X size={20} /> : <Plus size={20} />}
-          {showAddForm ? "Close" : "Add Employee"}
-        </button>
+        {/* Removed "Add Employee" button as duplicates are managed via OTP login mainly now */}
       </div>
 
-      {/* CREATE USER FORM (Only shows if showAddForm is true) */}
-      {showAddForm && (
-        <div className="bg-gray-100 p-6 rounded-lg mb-8 border border-gray-200">
-          <h3 className="font-bold mb-4 text-lg">Create New Employee</h3>
-          <form
-            onSubmit={handleCreateUser}
-            className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end"
-          >
-            <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">
-                Full Name
-              </label>
-              <input
-                required
-                placeholder="e.g. John Doe"
-                className="w-full p-2 rounded border focus:ring-black focus:border-black"
-                value={newUser.name}
-                onChange={(e) =>
-                  setNewUser({ ...newUser, name: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">
-                Email
-              </label>
-              <input
-                required
-                type="email"
-                placeholder="john@work.com"
-                className="w-full p-2 rounded border focus:ring-black focus:border-black"
-                value={newUser.email}
-                onChange={(e) =>
-                  setNewUser({ ...newUser, email: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">
-                Password
-              </label>
-              <input
-                required
-                type="password"
-                placeholder="******"
-                className="w-full p-2 rounded border focus:ring-black focus:border-black"
-                value={newUser.password}
-                onChange={(e) =>
-                  setNewUser({ ...newUser, password: e.target.value })
-                }
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-500 mb-1">
-                Role
-              </label>
-              <select
-                className="w-full p-2 rounded border focus:ring-black focus:border-black"
-                value={newUser.roleId}
-                onChange={(e) =>
-                  setNewUser({ ...newUser, roleId: e.target.value })
-                }
-              >
-                <option value="">Select Role...</option>
-                {roles.map((r: any) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              type="submit"
-              className="bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700 transition-colors"
-            >
-              Create User
-            </button>
-          </form>
-        </div>
-      )}
-
-      {/* USERS LIST TABLE */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
         <table className="w-full text-left text-sm text-gray-600">
           <thead className="bg-gray-50 text-gray-900 font-bold border-b">
             <tr>
-              <th className="p-4">User</th>
-              <th className="p-4">Email</th>
-              <th className="p-4">Role</th>
+              <th className="p-4">Customer</th>
+              <th className="p-4">Contact</th>
+              <th className="p-4 text-center">Orders</th>
+              <th className="p-4 text-center">Cart Items</th>
+              <th className="p-4 text-center">Role</th>
               <th className="p-4 text-center">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {users.map((user: any) => (
+            {users.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="p-8 text-center text-gray-500">No customers found.</td>
+              </tr>
+            ) : users.map((user: any) => (
               <tr key={user.id} className="hover:bg-gray-50">
-                <td className="p-4 flex items-center gap-3">
-                  <div className="bg-gray-100 p-2 rounded-full">
-                    <User size={16} />
-                  </div>
-                  <span className="font-medium text-black">{user.name}</span>
-                </td>
-                <td className="p-4">{user.email}</td>
                 <td className="p-4">
-                  <select
-                    className={`border p-1 rounded text-sm focus:ring-black focus:border-black cursor-pointer font-medium
-                                    ${
-                                      user.roleId
-                                        ? "bg-blue-50 text-blue-800 border-blue-200"
-                                        : "bg-gray-50 text-gray-600"
-                                    }`}
-                    value={user.roleId || ""}
-                    onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                    disabled={user.email === "admin@comfortclothing.com"}
-                  >
-                    <option value="">Customer (No Access)</option>
-                    {roles.map((r: any) => (
-                      <option key={r.id} value={r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-3">
+                    <div className="bg-gray-100 p-2 rounded-full">
+                      <User size={16} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-900">{user.name || "Unknown"}</p>
+                      <p className="text-xs text-gray-500">ID: {user.id}</p>
+                    </div>
+                  </div>
                 </td>
+                <td className="p-4">
+                  <p>{user.email || "-"}</p>
+                  <p className="text-xs text-gray-500">{user.phone}</p>
+                </td>
+
+                {/* Orders Count */}
+                <td className="p-4 text-center">
+                  <div className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-1 rounded-md text-xs font-bold">
+                    <ShoppingBag size={12} /> {user.ordersCount}
+                  </div>
+                </td>
+
+                {/* Cart Items Count */}
+                <td className="p-4 text-center">
+                  {user.cartItemsCount > 0 ? (
+                    <div className="inline-flex items-center gap-1 bg-purple-50 text-purple-700 px-2 py-1 rounded-md text-xs font-bold">
+                      <ShoppingCart size={12} /> {user.cartItemsCount}
+                    </div>
+                  ) : (
+                    <span className="text-gray-400">-</span>
+                  )}
+                </td>
+
+                <td className="p-4 text-center">
+                  <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">
+                    {user.role}
+                  </span>
+                </td>
+
                 <td className="p-4 text-center">
                   <button
                     onClick={() => handleDeleteUser(user.id)}
@@ -239,6 +121,10 @@ const AdminUsers = () => {
             ))}
           </tbody>
         </table>
+
+        {users.length > 0 && <div className="p-4 border-t border-gray-100">
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+        </div>}
       </div>
     </div>
   );

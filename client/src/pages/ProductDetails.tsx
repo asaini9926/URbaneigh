@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axios";
 import { useDispatch } from "react-redux";
-import { addToCart } from "../store/cartSlice";
-import { Truck, ShieldCheck, ShoppingBag } from "lucide-react";
+import { addItemToCart } from "../store/cartSlice";
+import { Truck, ShieldCheck, ShoppingBag, Share2 } from "lucide-react";
 import ProductSlider from "../components/ProductSlider";
 import ImageMagnifier from "../components/ImageMagnifier";
 
 const ProductDetails = () => {
-  const { id } = useParams();
+  const { slug } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
@@ -30,7 +30,7 @@ const ProductDetails = () => {
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const res = await api.get(`/products/${id}`);
+        const res = await api.get(`/products/${slug}`);
         const p = res.data;
         setProduct(p);
 
@@ -62,7 +62,7 @@ const ProductDetails = () => {
       }
     };
     fetchProduct();
-  }, [id]);
+  }, [slug]);
 
   // Find the specific variant based on current selection
   const currentVariant = product?.variants.find(
@@ -85,11 +85,13 @@ const ProductDetails = () => {
   const handleAddToCart = () => {
     if (!currentVariant) return;
 
+    // @ts-ignore
     dispatch(
-      addToCart({
+      addItemToCart({
         id: currentVariant.id,
         productId: product.id,
         title: product.title,
+        slug: product.slug,
         price: currentVariant.price,
         image: currentVariant.images?.[0]?.url || "https://via.placeholder.com/500",
         color: selectedColor,
@@ -161,6 +163,28 @@ const ProductDetails = () => {
                 <span className="px-2.5 py-0.5 rounded-full bg-green-100 text-green-800 text-xs font-bold uppercase tracking-wide">
                   In Stock
                 </span>
+                <button
+                  onClick={async () => {
+                    if (navigator.share) {
+                      try {
+                        await navigator.share({
+                          title: product.title,
+                          text: `Check out ${product.title} on Urbaneigh!`,
+                          url: window.location.href,
+                        });
+                      } catch (err) {
+                        console.log('Error sharing:', err);
+                      }
+                    } else {
+                      navigator.clipboard.writeText(window.location.href);
+                      alert('Link copied to clipboard!');
+                    }
+                  }}
+                  className="p-2 rounded-full hover:bg-gray-100 transition-colors ml-auto"
+                  title="Share Product"
+                >
+                  <Share2 size={24} className="text-gray-600" />
+                </button>
               </div>
 
               {/* Render HTML Description */}
@@ -228,6 +252,7 @@ const ProductDetails = () => {
                     id: currentVariant.id,
                     productId: product.id,
                     title: product.title,
+                    slug: product.slug,
                     price: currentVariant.price,
                     image: currentVariant.images?.[0]?.url || "https://via.placeholder.com/500",
                     color: selectedColor,
@@ -268,7 +293,7 @@ const ProductDetails = () => {
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 };
 

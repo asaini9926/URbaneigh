@@ -1,9 +1,13 @@
+import { useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   useLocation,
 } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchCart } from "./store/cartSlice";
+import type { RootState } from "./store/store";
 import Navbar from "./components/Navbar";
 import Login from "./pages/Login";
 import Home from "./pages/Home";
@@ -42,7 +46,8 @@ import AnalyticsDashboard from "./pages/admin/AnalyticsDashboard";
 import AdminVideos from "./pages/admin/AdminVideos";
 import AdminSubscribers from "./pages/admin/AdminSubscribers";
 import ScrollToTop from "./components/ScrollToTop";
-import AdminOrderDetails from "./pages/admin/AdminOrderDetails"; // Import AdminOrderDetails
+import AdminOrderDetails from "./pages/admin/AdminOrderDetails";
+import AdminCarts from "./pages/admin/AdminCarts";
 
 // Separate component to handle conditional Layout (Navbar/Footer)
 const ContentWrapper = () => {
@@ -63,7 +68,7 @@ const ContentWrapper = () => {
           <Route path="/shop" element={<Shop />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/product/:id" element={<ProductDetails />} />
+          <Route path="/product/:slug" element={<ProductDetails />} />
           <Route path="/cart" element={<Cart />} />
           <Route
             path="/refund-policy"
@@ -109,6 +114,7 @@ const ContentWrapper = () => {
               <Route path="products/new" element={<AddProduct />} />
               <Route path="products/edit/:id" element={<EditProduct />} />
               <Route path="users" element={<AdminUsers />} />
+              <Route path="carts" element={<AdminCarts />} />
               <Route path="roles" element={<AdminRoles />} />
               <Route path="categories" element={<AdminCategories />} />
               <Route path="brands" element={<AdminBrands />} />
@@ -131,6 +137,16 @@ const ContentWrapper = () => {
 };
 
 function App() {
+  const dispatch = useDispatch();
+  const { token } = useSelector((state: RootState) => state.auth);
+
+  useEffect(() => {
+    if (token) {
+      // @ts-ignore - AsyncThunk type issue helper
+      dispatch(fetchCart());
+    }
+  }, [token, dispatch]);
+
   return (
     <Router>
       <ScrollToTop />

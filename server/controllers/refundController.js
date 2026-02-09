@@ -44,9 +44,9 @@ exports.initiateRefund = async (req, res) => {
     }
 
     // Only prepaid (Paytm) orders can be refunded
-    if (order.payment_method !== 'PAYTM') {
+    if (order.paymentMethod !== 'PAYTM') {
       return res.status(400).json({
-        error: `Cannot refund ${order.payment_method} orders. This endpoint is for Paytm refunds only.`,
+        error: `Cannot refund ${order.paymentMethod} orders. This endpoint is for Paytm refunds only.`,
       });
     }
 
@@ -257,9 +257,9 @@ exports.initiateCODRefund = async (req, res) => {
     }
 
     // Only COD orders
-    if (order.payment_method !== 'COD') {
+    if (order.paymentMethod !== 'COD') {
       return res.status(400).json({
-        error: `Cannot process COD refund for ${order.payment_method} orders`,
+        error: `Cannot process COD refund for ${order.paymentMethod} orders`,
       });
     }
 
@@ -335,7 +335,7 @@ exports.getRefundDetails = async (req, res) => {
 
     return res.status(200).json({
       order_id: orderId,
-      payment_method: order.payment_method,
+      payment_method: order.paymentMethod,
       refund_txn_id: order.payment.refund_txn_id,
       refund_amount: order.payment.refund_amount,
       status: order.payment.status,
