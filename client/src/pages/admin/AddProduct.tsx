@@ -13,8 +13,8 @@ import 'react-quill-new/dist/quill.snow.css';
 
 const AddProduct = () => {
   const navigate = useNavigate();
-  const [categories, setCategories] = useState([]);
-  const [brands, setBrands] = useState([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [brands, setBrands] = useState<any[]>([]);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");

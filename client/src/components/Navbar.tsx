@@ -235,7 +235,7 @@ const Navbar = () => {
               {/* Desktop Dropdown */}
               {isAuthenticated && (
                 <div className="absolute right-0 mt-0 w-48 bg-white border border-gray-100 shadow-lg rounded-md py-1 hidden group-hover:block">
-                  {user?.roles?.length > 0 && (
+                  {(user?.roles?.length ?? 0) > 0 && (
                     <Link
                       to="/admin"
                       className="block px-4 py-2 text-sm font-bold text-black hover:bg-gray-50 border-b"
@@ -452,7 +452,7 @@ const Navbar = () => {
                   </div>
                 </div>
 
-                {user?.roles?.length > 0 && (
+                {(user?.roles?.length ??0) > 0 && (
                   <Link
                     to="/admin"
                     onClick={() => setIsMobileMenuOpen(false)}

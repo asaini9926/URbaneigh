@@ -86,7 +86,7 @@ const ProductDetails = () => {
     if (!currentVariant) return;
 
     // @ts-ignore
-    dispatch(
+    (dispatch as any)(
       addItemToCart({
         id: currentVariant.id,
         productId: product.id,
