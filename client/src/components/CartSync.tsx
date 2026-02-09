@@ -10,7 +10,7 @@ const CartSync = () => {
     const { token } = useSelector((state: RootState) => state.auth);
 
     // Config: Base URL is likely localhost:5000 or relative if proxy set
-    const BASE_URL = 'http://localhost:5000/api';
+    const BASE_URL = 'import.meta.env.VITE_API_URL';
 
     // Debounce Ref
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);

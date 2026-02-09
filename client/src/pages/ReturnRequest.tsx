@@ -52,7 +52,7 @@ export default function ReturnRequest() {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        `http://localhost:5000/api/orders/${orderId}`,
+        `import.meta.env.VITE_API_URL/orders/${orderId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setOrder(response.data.order);
@@ -99,7 +99,7 @@ export default function ReturnRequest() {
         }));
 
       const response = await axios.post(
-        'http://localhost:5000/api/returns/create',
+        'import.meta.env.VITE_API_URL/returns/create',
         {
           orderId: parseInt(orderId!),
           reason: formData.reason,

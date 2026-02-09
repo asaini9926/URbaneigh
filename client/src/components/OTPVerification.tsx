@@ -30,7 +30,7 @@ export default function OTPVerification({
       const token = localStorage.getItem('token');
 
       await axios.post(
-        `http://localhost:5000/api/cod/generate-otp`,
+        `import.meta.env.VITE_API_URL/cod/generate-otp`,
         { orderId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -56,7 +56,7 @@ export default function OTPVerification({
       const token = localStorage.getItem('token');
 
       const response = await axios.post(
-        `http://localhost:5000/api/cod/verify-otp`,
+        `import.meta.env.VITE_API_URL/cod/verify-otp`,
         { orderId, otp },
         { headers: { Authorization: `Bearer ${token}` } }
       );

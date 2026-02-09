@@ -54,13 +54,13 @@ export default function AdminReconciliation() {
       const headers = { Authorization: `Bearer ${token}` };
 
       const [pendingRes, settlementRes, alertsRes] = await Promise.all([
-        axios.get('http://localhost:5000/api/reconciliation/pending-orders?page=1&limit=20', {
+        axios.get('import.meta.env.VITE_API_URL/reconciliation/pending-orders?page=1&limit=20', {
           headers,
         }),
-        axios.get(`http://localhost:5000/api/reconciliation/settlement-summary?period=${period}`, {
+        axios.get(`import.meta.env.VITE_API_URL/reconciliation/settlement-summary?period=${period}`, {
           headers,
         }),
-        axios.get('http://localhost:5000/api/reconciliation/alerts?status=OPEN&page=1&limit=20', {
+        axios.get('import.meta.env.VITE_API_URL/reconciliation/alerts?status=OPEN&page=1&limit=20', {
           headers,
         }),
       ]);
@@ -82,7 +82,7 @@ export default function AdminReconciliation() {
 
       const token = localStorage.getItem('token');
       await axios.post(
-        'http://localhost:5000/api/reconciliation/record-payment',
+        'import.meta.env.VITE_API_URL/reconciliation/record-payment',
         {
           orderId,
           amount,
@@ -105,7 +105,7 @@ export default function AdminReconciliation() {
 
       const token = localStorage.getItem('token');
       await axios.post(
-        `http://localhost:5000/api/reconciliation/alerts/${alertId}/resolve`,
+        `import.meta.env.VITE_API_URL/reconciliation/alerts/${alertId}/resolve`,
         { resolution },
         { headers: { Authorization: `Bearer ${token}` } }
       );
