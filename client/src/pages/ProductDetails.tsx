@@ -173,7 +173,7 @@ const ProductDetails = () => {
                           url: window.location.href,
                         });
                       } catch (err) {
-                        console.log('Error sharing:', err);
+                        console.error('Error sharing:', err);
                       }
                     } else {
                       navigator.clipboard.writeText(window.location.href);

@@ -59,7 +59,7 @@ exports.checkPermission = (requiredPermission) => {
         const user = req.user;
 
         // Flatten all permissions the user has into a single array of strings
-        const userPermissions = user.roles.flatMap(ur => 
+        const userPermissions = user.roles.flatMap(ur =>
             ur.role.permissions.map(rp => rp.permission.action)
         );
 

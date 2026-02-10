@@ -10,7 +10,7 @@ const CartSync = () => {
     const { token } = useSelector((state: RootState) => state.auth);
 
     // Config: Base URL is likely localhost:5000 or relative if proxy set
-    const BASE_URL = 'import.meta.env.VITE_API_URL';
+    const BASE_URL = import.meta.env.VITE_API_URL;
 
     // Debounce Ref
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -43,7 +43,6 @@ const CartSync = () => {
                     },
                     withCredentials: true // For cookies
                 });
-                console.log('Cart synced to backend');
             } catch (error) {
                 console.error('Failed to sync cart:', error);
             }

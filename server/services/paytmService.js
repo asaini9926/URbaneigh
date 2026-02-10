@@ -24,9 +24,9 @@ class PaytmService {
    */
   async initiateTransaction(orderId, amount, customerId, customerEmail, customerPhone) {
 
-    // [FIX] Use Paytm's internal callback to bypass localhost validation errors
+    // [FIX] Use Paytm's internal callback or environment variable
     // Once this works, you must use NGROK for your local server to handle updates.
-    const safeCallbackUrl = `https://securegw-stage.paytm.in/theia/paytmCallback?ORDER_ID=${orderId}`;
+    const safeCallbackUrl = process.env.PAYTM_CALLBACK_URL || `https://securegw-stage.paytm.in/theia/paytmCallback?ORDER_ID=${orderId}`;
 
     const paytmParams = {
       body: {

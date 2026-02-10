@@ -38,9 +38,9 @@ const mapServerCartToClient = (serverCart: any): CartState => {
   // unwrap common backend response shapes
   const cart =
     serverCart?.items ? serverCart :
-    serverCart?.cart ? serverCart.cart :
-    serverCart?.data ? serverCart.data :
-    {};
+      serverCart?.cart ? serverCart.cart :
+        serverCart?.data ? serverCart.data :
+          {};
 
   const rawItems = Array.isArray(cart.items) ? cart.items : [];
 
@@ -57,8 +57,8 @@ const mapServerCartToClient = (serverCart: any): CartState => {
     maxStock: item.variant?.inventory?.quantity || 0
   }));
 
-  const totalQuantity = items.reduce((acc, item) => acc + item.quantity, 0);
-  const totalAmount = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
+  const totalQuantity = items.reduce((acc: number, item: CartItem) => acc + item.quantity, 0);
+  const totalAmount = items.reduce((acc: number, item: CartItem) => acc + item.price * item.quantity, 0);
 
   return { items, totalQuantity, totalAmount };
 };

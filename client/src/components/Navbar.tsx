@@ -110,9 +110,8 @@ const Navbar = () => {
 
           {/* 2. Desktop Navigation (Hidden when search is open) */}
           <div
-            className={`hidden md:flex space-x-8 transition-opacity duration-200 ${
-              showSearch ? "opacity-0 pointer-events-none" : "opacity-100"
-            }`}
+            className={`hidden md:flex space-x-8 transition-opacity duration-200 ${showSearch ? "opacity-0 pointer-events-none" : "opacity-100"
+              }`}
           >
             {categories.map((cat) => (
               <div key={cat.id} className="relative group">
@@ -160,9 +159,8 @@ const Navbar = () => {
 
           {/* 3. Integrated Search Bar (Desktop Overlay) */}
           <div
-            className={`absolute left-0 right-0 top-0 bg-white flex flex-col items-center pt-3 transition-transform duration-300 z-10 shadow-sm ${
-              showSearch ? "translate-y-0" : "-translate-y-full"
-            }`}
+            className={`absolute left-0 right-0 top-0 bg-white flex flex-col items-center pt-3 transition-transform duration-300 z-10 shadow-sm ${showSearch ? "translate-y-0" : "-translate-y-full"
+              }`}
           >
             <div className="w-full max-w-2xl px-4 relative flex items-center h-12">
               <form onSubmit={handleSearchSubmit} className="w-full relative">
@@ -176,7 +174,7 @@ const Navbar = () => {
                   placeholder="Search for products (e.g. 'Cotton Tshirt')..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  //   onBlur={() => setTimeout(() => setShowSearch(false), 200)} // Removed to allow clicking suggestions
+                //   onBlur={() => setTimeout(() => setShowSearch(false), 200)} // Removed to allow clicking suggestions
                 />
               </form>
               <button
@@ -260,7 +258,7 @@ const Navbar = () => {
               {/* Desktop Dropdown */}
               {isAuthenticated && (
                 <div className="absolute right-0 mt-0 w-48 bg-white border border-gray-100 shadow-lg rounded-md py-1 hidden group-hover:block">
-                  {(user?.roles?.length ?? 0) > 0 && (
+                  {user?.roles?.includes('SuperAdmin') && (
                     <Link
                       to="/admin"
                       className="block px-4 py-2 text-sm font-bold text-black hover:bg-gray-50 border-b"
@@ -483,7 +481,7 @@ const Navbar = () => {
                   </div>
                 </div>
 
-                {(user?.roles?.length ?? 0) > 0 && (
+                {user?.roles?.includes('SuperAdmin') && (
                   <Link
                     to="/admin"
                     onClick={() => setIsMobileMenuOpen(false)}
