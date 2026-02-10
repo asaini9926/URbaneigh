@@ -24,15 +24,16 @@ exports.loginWithOtp = async (req, res) => {
 
         // 2. Find or Create User
         // Robust lookup: Check for exact match OR match without country code (last 10 digits)
-        // This prevents creating duplicates if DB has '9876543210' but Firebase sends '+919876543210'
         const phoneLast10 = phone_number.slice(-10);
 
+        // Try to find user with any matching format
         let user = await prisma.user.findFirst({
             where: {
                 OR: [
-                    { phone: phone_number },           // Exact match (+91...)
-                    { phone: phoneLast10 },            // Local match (987...)
-                    { phone: `+91${phoneLast10}` }     // Explicit +91 match if input was clean
+                    { phone: phone_number },                   // Exact match from Firebase (e.g., +91987...)
+                    { phone: phoneLast10 },                    // 10 digit match (e.g., 987...)
+                    { phone: `+91${phoneLast10}` },            // +91 format
+                    { phone: { endsWith: phoneLast10 } }       // Suffix match as final fallback
                 ]
             },
             include: {
@@ -52,13 +53,13 @@ exports.loginWithOtp = async (req, res) => {
         });
 
         if (!user) {
+            console.log(`[Auth] Creating new user for phone: ${phone_number}`);
             user = await prisma.user.create({
                 data: {
                     phone: phone_number,
-                    // Name is initially null, will be updated when they set a default address
                     roles: {
                         create: {
-                            role: { connect: { name: 'Customer' } } // Ensure 'Customer' role exists in DB seeding
+                            role: { connect: { name: 'Customer' } }
                         }
                     }
                 },
@@ -67,6 +68,8 @@ exports.loginWithOtp = async (req, res) => {
                 }
             });
         } else {
+            console.log(`[Auth] User found: ${user.id} (${user.phone})`);
+
             // Sync name if default address exists and name is different
             if (user.addresses.length > 0 && user.addresses[0].name && user.name !== user.addresses[0].name) {
                 // Optional: We can decide if we want to auto-update user name from default address here or keep it separate

@@ -163,8 +163,10 @@ const Checkout = () => {
   // Load Paytm script on component mount
   useEffect(() => {
     const script = document.createElement("script");
-    // Use Staging for development (change to securegw.paytm.in for production)
-    script.src = "https://securegw-stage.paytm.in/merchantpgp/gpay.js";
+    const paytmEnv = import.meta.env.VITE_PAYTM_ENV || 'STAGING';
+    script.src = paytmEnv === 'PROD'
+      ? "https://securegw.paytm.in/merchantpgp/gpay.js"
+      : "https://securegw-stage.paytm.in/merchantpgp/gpay.js";
     script.async = true;
     document.body.appendChild(script);
     return () => {
@@ -238,7 +240,7 @@ const Checkout = () => {
           handler: {
             notifyMerchant: async function (eventName: string, data: any) {
               if (eventName === "APP_INITIALIZED") {
-                console.log("Paytm app initialized");
+                // Paytm app initialized
               } else if (eventName === "TRANSACTION_STATUS") {
                 // Verify payment on server
                 try {

@@ -2,7 +2,6 @@
 const express = require('express');
 const router = express.Router();
 const productController = require('../controllers/productController');
-console.log('Product Controller Exports:', Object.keys(productController));
 const { protect, checkPermission } = require('../middleware/authMiddleware');
 
 

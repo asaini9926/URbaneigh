@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, Navigate } from 'react-router-dom';
 import { LayoutDashboard, ShoppingBag, ShoppingCart, Package, Users, LogOut, Ticket, Megaphone, BarChart3, Video } from 'lucide-react';
 import { useDispatch } from 'react-redux';
 import { logout } from '../store/authSlice';
@@ -28,6 +28,10 @@ const AdminLayout = () => {
     { icon: ShoppingBag, label: 'COD Reconciliation', path: '/admin/reconciliation' },
     { icon: Users, label: 'Subscribers', path: '/admin/subscribers' },
   ];
+
+  if (!isSuperAdmin) {
+    return <Navigate to="/" replace />;
+  }
 
   if (isSuperAdmin) {
     menuItems.push({ icon: ShieldAlert, label: 'Roles & Permissions', path: '/admin/roles' });

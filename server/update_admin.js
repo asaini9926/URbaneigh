@@ -1,52 +1,60 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-async function updateAdminPhone() {
+async function promoteToSuperAdmin() {
     try {
         const targetName = 'Abhishek Saini';
-        const newPhone = '9602799926';
+        const roleName = 'SuperAdmin';
 
-        // Find user by name (case insensitive search not directly supported in standard simple findFirst, but we can try exact or exact string)
-        // Adjusting to find first user with name 'Abhishek Saini'
+        // 1. Ensure SuperAdmin Role Exists
+        let role = await prisma.role.findUnique({
+            where: { name: roleName }
+        });
+
+        if (!role) {
+            console.log(`Creating ${roleName} role...`);
+            role = await prisma.role.create({
+                data: {
+                    name: roleName,
+                    description: 'Full Access to Everything'
+                }
+            });
+        }
+        console.log(`✅ Role '${role.name}' is ready (ID: ${role.id}).`);
+
+        // 2. Find User
         const user = await prisma.user.findFirst({
-            where: {
-                name: {
-                    equals: targetName,
-                    // mode: 'insensitive' // Postgres only, removing to be safe if using SQLite/MySQL without config
-                }
-            },
-            include: {
-                roles: {
-                    include: { role: true }
-                }
-            }
+            where: { name: targetName },
+            include: { roles: true }
         });
 
         if (!user) {
             console.log(`❌ User '${targetName}' not found.`);
-            // Fallback: Check all users
-            const allUsers = await prisma.user.findMany();
-            console.log('Available users:', allUsers.map(u => u.name));
             return;
         }
 
         console.log(`Found User: ${user.name} (ID: ${user.id})`);
-        console.log(`Current Phone: ${user.phone}`);
-        console.log(`Roles: ${user.roles.map(r => r.role.name).join(', ')}`);
 
-        // Update Phone
-        const updatedUser = await prisma.user.update({
-            where: { id: user.id },
-            data: { phone: newPhone }
-        });
+        // 3. Assign Role if not already assigned
+        const hasRole = user.roles.some(ur => ur.roleId === role.id);
 
-        console.log(`✅ Successfully updated phone number to: ${updatedUser.phone}`);
+        if (!hasRole) {
+            await prisma.userRole.create({
+                data: {
+                    userId: user.id,
+                    roleId: role.id
+                }
+            });
+            console.log(`✅ Successfully assigned '${roleName}' role to ${user.name}`);
+        } else {
+            console.log(`ℹ️ User already has '${roleName}' role.`);
+        }
 
     } catch (error) {
-        console.error('Error updating user:', error);
+        console.error('Error promoting user:', error);
     } finally {
         await prisma.$disconnect();
     }
 }
 
-updateAdminPhone();
+promoteToSuperAdmin();

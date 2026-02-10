@@ -31,7 +31,7 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-    origin: ['http://localhost:5173', 'https://urbaneigh.com'],
+    origin: [process.env.CLIENT_URL || 'http://localhost:5173', 'https://urbaneigh.com'],
     credentials: true
 }));
 app.use(express.json());
@@ -84,5 +84,6 @@ async function main() {
         process.exit(1);
     }
 }
+
 
 main();
