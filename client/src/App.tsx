@@ -48,6 +48,7 @@ import AdminSubscribers from "./pages/admin/AdminSubscribers";
 import ScrollToTop from "./components/ScrollToTop";
 import AdminOrderDetails from "./pages/admin/AdminOrderDetails";
 import AdminCarts from "./pages/admin/AdminCarts";
+import PaymentResult from "./pages/PaymentResult";
 
 // Separate component to handle conditional Layout (Navbar/Footer)
 const ContentWrapper = () => {
@@ -94,6 +95,9 @@ const ContentWrapper = () => {
               <PrivacyPolicy />
             }
           />
+
+          {/* Payment result page (redirect from Paytm) */}
+          <Route path="/payment-result" element={<PaymentResult />} />
 
           {/* Protected Routes */}
           <Route element={<RequireAuth />}>

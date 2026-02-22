@@ -49,15 +49,47 @@ const AdminOrders = () => {
     fetchOrders(page);
   }, [page, activeTab]);
 
-  const getFulfillmentStatus = (order: any) => {
-    if (order.status === 'DELIVERED' || order.status === 'SHIPPED') return 'fulfilled';
-    return 'unfulfilled';
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'PAID':
+      case 'CONFIRMED':
+      case 'READY_TO_PICK':
+      case 'PICKED_UP':
+      case 'IN_TRANSIT':
+      case 'OUT_FOR_DELIVERY':
+        return 'bg-green-100 text-green-800';
+      case 'DELIVERED': return 'bg-green-600 text-white';
+      case 'PENDING':
+      case 'CREATED':
+      case 'PAYMENT_PENDING':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'FAILED':
+      case 'PAYMENT_FAILED':
+      case 'CANCELLED':
+        return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
   };
 
-  const getPaymentStatus = (order: any) => {
-    if (order.payment?.status === 'COMPLETED') return 'paid';
-    if (order.payment?.status === 'PENDING') return 'pending';
-    return 'voided';
+  const getStatusLabel = (status: string) => {
+    const labels: { [key: string]: string } = {
+      CREATED: 'Awaiting Payment',
+      PAYMENT_PENDING: 'Payment Gateway',
+      PAYMENT_FAILED: 'Failed',
+      CONFIRMED: 'Ready to Ship',
+      PAID: 'Ready to Ship',
+      READY_TO_PACK: 'Packing',
+      PACKED: 'Packed',
+      READY_TO_PICK: 'Awaiting Courier',
+      PICKED_UP: 'Shipped',
+      IN_TRANSIT: 'In Transit',
+      OUT_FOR_DELIVERY: 'Out for Delivery',
+      DELIVERED: 'Delivered',
+      CANCELLED: 'Cancelled',
+      RETURN_REQUESTED: 'Return Req',
+      RETURNED: 'Returned',
+    };
+    return labels[status] || status.replace(/_/g, ' ');
   };
 
   if (loading) return <div>Loading Admin Panel...</div>;
@@ -90,16 +122,13 @@ const AdminOrders = () => {
               <th className="p-4">Date</th>
               <th className="p-4">Customer</th>
               <th className="p-4">Total</th>
-              <th className="p-4">Payment</th>
-              <th className="p-4">Fulfillment</th>
+              <th className="p-4">Status</th>
               <th className="p-4">Items</th>
               <th className="p-4">Delivery Method</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {orders.map((order: any) => {
-              const payStatus = getPaymentStatus(order);
-              const fulfillStatus = getFulfillmentStatus(order);
               const itemCount = order.items.reduce((acc: number, item: any) => acc + item.quantity, 0);
 
               return (
@@ -120,17 +149,9 @@ const AdminOrders = () => {
                   </td>
                   <td className="p-4 text-gray-600">₹{order.totalAmount}</td>
                   <td className="p-4">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize 
-                              ${payStatus === 'paid' ? 'bg-gray-100 text-gray-800' :
-                        payStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
-                      {payStatus === 'paid' ? <CheckCircle size={10} className="mr-1" /> : <Clock size={10} className="mr-1" />}
-                      {payStatus}
-                    </span>
-                  </td>
-                  <td className="p-4">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize 
-                              ${fulfillStatus === 'fulfilled' ? 'bg-gray-100 text-gray-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                      {fulfillStatus}
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold shadow-sm 
+                              ${getStatusColor(order.status)}`}>
+                      {getStatusLabel(order.status)}
                     </span>
                   </td>
                   <td className="p-4 text-gray-500">{itemCount} items</td>

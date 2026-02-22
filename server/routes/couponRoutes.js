@@ -10,5 +10,6 @@ router.post('/verify', protect, couponController.verifyCoupon);
 router.get('/', protect, checkPermission('product.create'), couponController.getAllCoupons); // Re-using permission for simplicity
 router.post('/', protect, checkPermission('product.create'), couponController.createCoupon);
 router.delete('/:id', protect, checkPermission('product.create'), couponController.deleteCoupon);
+router.get('/:id/usages', protect, checkPermission('product.create'), couponController.getCouponUsages);
 
 module.exports = router;

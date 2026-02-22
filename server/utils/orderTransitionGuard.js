@@ -14,21 +14,24 @@
  */
 const VALID_TRANSITIONS = {
   // Initial state
-  'CREATED': ['PAYMENT_PENDING', 'CANCELLED'],
-  
+  'CREATED': ['PAYMENT_PENDING', 'CONFIRMED', 'CANCELLED'],
+
   // Payment processing
   'PAYMENT_PENDING': ['PAID', 'PAYMENT_FAILED', 'CANCELLED'],
   'PAYMENT_FAILED': ['CANCELLED'],  // Can only cancel failed orders
-  
-  // Order confirmed, ready for fulfillment
+
+  // Order confirmed (COD accepted, awaiting fulfillment)
+  'CONFIRMED': ['READY_TO_PACK', 'CANCELLED'],
+
+  // Order paid online, ready for fulfillment
   'PAID': ['READY_TO_PACK', 'CANCELLED'],
-  
+
   // Warehouse processing
   'READY_TO_PACK': ['PACKED'],
-  
+
   // Ready for courier handoff (terminal before cancellation blocked)
   'PACKED': ['CANCELLED'],  // Can only cancel before courier takes it
-  
+
   // Terminal states - no transitions out
   'CANCELLED': []
 };
@@ -42,12 +45,12 @@ const VALID_TRANSITIONS = {
 function canTransition(fromStatus, toStatus) {
   // Allow idempotent updates (same status)
   if (fromStatus === toStatus) return true;
-  
+
   const allowedTransitions = VALID_TRANSITIONS[fromStatus];
   if (!allowedTransitions) {
     return false; // Unknown status
   }
-  
+
   return allowedTransitions.includes(toStatus);
 }
 
@@ -70,11 +73,11 @@ function canTransition(fromStatus, toStatus) {
 function validateTransition(fromStatus, toStatus) {
   // Allow idempotent updates
   if (fromStatus === toStatus) return;
-  
+
   if (!canTransition(fromStatus, toStatus)) {
     const allowed = VALID_TRANSITIONS[fromStatus] || [];
     const allowedStr = allowed.length > 0 ? allowed.join(', ') : 'none (terminal state)';
-    
+
     throw new Error(
       `Invalid order status transition: ${fromStatus} → ${toStatus}. ` +
       `Allowed transitions from ${fromStatus}: ${allowedStr}`
@@ -120,7 +123,7 @@ function canInitiatePayment(status) {
  * @returns {boolean} True if order is paid and ready for fulfillment
  */
 function isReadyForFulfillment(status) {
-  return status === 'PAID';
+  return status === 'PAID' || status === 'CONFIRMED';
 }
 
 /**

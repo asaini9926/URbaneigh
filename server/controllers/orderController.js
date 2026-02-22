@@ -15,7 +15,7 @@ function generateIdempotencyKey(userId, items) {
 exports.createOrder = async (req, res) => {
     try {
         // 1. Get Data from Frontend
-        const { items, shippingAddress, paymentMethod } = req.body;
+        const { items, shippingAddress, paymentMethod, couponCode } = req.body;
         const userId = req.user.id; // From the Token
 
         // Only allow COD through this endpoint now
@@ -24,7 +24,6 @@ exports.createOrder = async (req, res) => {
         }
 
         // 2. Calculate Total (Server-side validation is safer)
-        // We fetch prices from DB to ensure user didn't fake the price
         let totalAmount = 0;
         const orderItemsData = [];
 
@@ -53,10 +52,40 @@ exports.createOrder = async (req, res) => {
             });
         }
 
-        // Add Shipping logic (Free Delivery for all - Prod-3 requirement)
-        // logic: Display says 79 - 79, so effective cost is 0.
-        const shippingCost = 0;
-        const finalTotal = totalAmount + shippingCost;
+        // Calculate Shipping: Flat 79, Free for >= 999
+        let shippingCost = totalAmount >= 999 ? 0 : 79;
+        let finalTotal = totalAmount + shippingCost;
+
+        let discountApplied = 0;
+        let appliedCouponId = null;
+
+        if (couponCode) {
+            const coupon = await prisma.coupon.findUnique({ where: { code: couponCode } });
+            if (coupon && coupon.isActive && new Date() <= new Date(coupon.expiryDate) && coupon.usedCount < coupon.usageLimit) {
+                // Check if user already used this coupon
+                const existingUsage = await prisma.couponUsage.findFirst({
+                    where: {
+                        couponId: coupon.id,
+                        userId: userId
+                    }
+                });
+
+                if (existingUsage) {
+                    return res.status(400).json({ error: 'You have already used this coupon.' });
+                }
+
+                if (totalAmount >= Number(coupon.minOrderVal)) {
+                    if (coupon.type === 'PERCENTAGE') {
+                        discountApplied = (totalAmount * Number(coupon.value)) / 100;
+                    } else {
+                        discountApplied = Number(coupon.value);
+                    }
+                    if (discountApplied > totalAmount) discountApplied = totalAmount; // Cap discount
+                    finalTotal -= discountApplied;
+                    appliedCouponId = coupon.id;
+                }
+            }
+        }
 
         const idempotencyKey = generateIdempotencyKey(userId, items);
 
@@ -89,6 +118,23 @@ exports.createOrder = async (req, res) => {
                 }
             });
 
+            // If a coupon was used, we will later need to update CouponUsage (issue 2 setup hook)
+            if (appliedCouponId) {
+                await prisma.coupon.update({
+                    where: { id: appliedCouponId },
+                    data: { usedCount: { increment: 1 } }
+                });
+
+                // Log Usage
+                await prisma.couponUsage.create({
+                    data: {
+                        couponId: appliedCouponId,
+                        userId: userId,
+                        orderId: order.id
+                    }
+                });
+            }
+
             // C. Create Reservations (hold for potential cancellation window)
             for (const item of items) {
                 await prisma.reservation.create({
@@ -108,10 +154,10 @@ exports.createOrder = async (req, res) => {
                 });
             }
 
-            // For COD, immediately move to PAID (since we accept payment on delivery)
-            const paidOrder = await prisma.order.update({
+            // For COD, move to CONFIRMED (not PAID — payment happens on delivery)
+            const confirmedOrder = await prisma.order.update({
                 where: { id: order.id },
-                data: { status: 'PAID' }
+                data: { status: 'CONFIRMED' }
             });
 
             // Finalize reservations (convert to permanent inventory deduction)
@@ -136,7 +182,7 @@ exports.createOrder = async (req, res) => {
             }
 
 
-            return paidOrder;
+            return confirmedOrder;
         });
 
         res.status(201).json({
@@ -148,6 +194,36 @@ exports.createOrder = async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(400).json({ error: error.message });
+    }
+};
+
+// Get Single Order by ID (for authenticated user)
+exports.getOrderById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
+
+        const order = await prisma.order.findUnique({
+            where: { id: Number(id) },
+            include: {
+                items: { include: { variant: { include: { product: true } } } },
+                payment: true,
+                shipments: true
+            }
+        });
+
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        // Security: Only allow user to see their own orders
+        if (order.userId !== userId) {
+            return res.status(403).json({ error: 'Unauthorized' });
+        }
+
+        res.json({ order });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
     }
 };
 

@@ -75,6 +75,59 @@ const AdminOrderDetails = () => {
         }
     };
 
+    const generateAWB = async (shipmentId: number) => {
+        setShippingLoading(true);
+        try {
+            await api.post("/shipments/generate-awb", { shipmentId });
+            alert("AWB Generated Successfully!");
+            fetchOrder();
+        } catch (err: any) {
+            alert(err.response?.data?.error || "Failed to generate AWB");
+        } finally {
+            setShippingLoading(false);
+        }
+    };
+
+    const schedulePickup = async (shipmentId: number) => {
+        setShippingLoading(true);
+        try {
+            await api.post("/shipments/schedule-pickup", { shipmentIds: [shipmentId] });
+            alert("Pickup Scheduled Successfully!");
+            fetchOrder();
+        } catch (err: any) {
+            alert(err.response?.data?.error || "Failed to schedule pickup");
+        } finally {
+            setShippingLoading(false);
+        }
+    };
+
+    const generateLabel = async (shipmentId: number) => {
+        setShippingLoading(true);
+        try {
+            await api.post("/shipments/generate-label", { shipmentId });
+            alert("Label Generated Successfully!");
+            fetchOrder();
+        } catch (err: any) {
+            alert(err.response?.data?.error || "Failed to generate label");
+        } finally {
+            setShippingLoading(false);
+        }
+    };
+
+    const cancelShipment = async (shipmentId: number) => {
+        if (!window.confirm("Are you sure you want to cancel this shipment on Shiprocket? This cannot be undone.")) return;
+        setShippingLoading(true);
+        try {
+            await api.post("/shipments/cancel", { shipmentId });
+            alert("Shipment Canceled Successfully!");
+            fetchOrder();
+        } catch (err: any) {
+            alert(err.response?.data?.error || "Failed to cancel shipment");
+        } finally {
+            setShippingLoading(false);
+        }
+    };
+
     const verifyPayment = async () => {
         setVerifyingPayment(true);
         try {
@@ -129,13 +182,47 @@ const AdminOrderDetails = () => {
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'PAID': return 'bg-green-100 text-green-800';
-            case 'PENDING': return 'bg-yellow-100 text-yellow-800';
-            case 'FAILED': return 'bg-red-100 text-red-800';
+            case 'PAID':
+            case 'CONFIRMED':
+            case 'READY_TO_PICK':
+            case 'PICKED_UP':
+            case 'IN_TRANSIT':
+            case 'OUT_FOR_DELIVERY':
+                return 'bg-green-100 text-green-800';
+            case 'DELIVERED': return 'bg-green-600 text-white';
+            case 'PENDING':
+            case 'CREATED':
+            case 'PAYMENT_PENDING':
+                return 'bg-yellow-100 text-yellow-800';
+            case 'FAILED':
+            case 'PAYMENT_FAILED':
+            case 'CANCELLED':
+                return 'bg-red-100 text-red-800';
             case 'COMPLETED': return 'bg-green-100 text-green-800';
             case 'REFUNDED': return 'bg-purple-100 text-purple-800';
             default: return 'bg-gray-100 text-gray-800';
         }
+    };
+
+    const getStatusLabel = (status: string) => {
+        const labels: { [key: string]: string } = {
+            CREATED: 'Awaiting Payment',
+            PAYMENT_PENDING: 'Payment Initiated',
+            PAYMENT_FAILED: 'Payment Failed',
+            CONFIRMED: 'Ready to Ship (COD)',
+            PAID: 'Ready to Ship (PAID)',
+            READY_TO_PACK: 'Packing',
+            PACKED: 'Packed',
+            READY_TO_PICK: 'Awaiting Courier',
+            PICKED_UP: 'Shipped',
+            IN_TRANSIT: 'In Transit',
+            OUT_FOR_DELIVERY: 'Out for Delivery',
+            DELIVERED: 'Delivered',
+            CANCELLED: 'Cancelled',
+            RETURN_REQUESTED: 'Return Requested',
+            RETURNED: 'Returned',
+        };
+        return labels[status] || status.replace(/_/g, ' ');
     };
 
     return (
@@ -230,9 +317,45 @@ const AdminOrderDetails = () => {
                                         <div className="text-sm text-blue-800 mb-2">
                                             AWB: <span className="font-mono">{shipment.waybill || 'N/A'}</span>
                                         </div>
-                                        <div className="flex gap-2 mt-3">
+                                        <div className="flex gap-2 mt-3 flex-wrap">
+                                            {shipment.status === 'CREATED' && (
+                                                <button
+                                                    onClick={() => generateAWB(shipment.id)}
+                                                    disabled={shippingLoading}
+                                                    className="flex items-center gap-1 text-xs px-3 py-1.5 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50"
+                                                >
+                                                    Generate AWB
+                                                </button>
+                                            )}
+                                            {['CREATED', 'MANIFESTED'].includes(shipment.status) && (
+                                                <button
+                                                    onClick={() => cancelShipment(shipment.id)}
+                                                    disabled={shippingLoading}
+                                                    className="flex items-center gap-1 text-xs px-3 py-1.5 bg-red-100 text-red-700 rounded hover:bg-red-200 disabled:opacity-50"
+                                                >
+                                                    Cancel Shipment
+                                                </button>
+                                            )}
+                                            {shipment.status === 'MANIFESTED' && (
+                                                <button
+                                                    onClick={() => schedulePickup(shipment.id)}
+                                                    disabled={shippingLoading}
+                                                    className="flex items-center gap-1 text-xs px-3 py-1.5 bg-black text-white rounded hover:bg-gray-800 disabled:opacity-50"
+                                                >
+                                                    Schedule Pickup
+                                                </button>
+                                            )}
+                                            {(!shipment.label_url && ['MANIFESTED', 'PICKED_UP'].includes(shipment.status)) && (
+                                                <button
+                                                    onClick={() => generateLabel(shipment.id)}
+                                                    disabled={shippingLoading}
+                                                    className="flex items-center gap-1 text-xs px-3 py-1.5 bg-white border border-blue-200 rounded hover:bg-gray-50 disabled:opacity-50"
+                                                >
+                                                    <Printer size={14} /> Fetch Label
+                                                </button>
+                                            )}
                                             <a href={shipment.label_url || '#'} target="_blank" rel="noreferrer"
-                                                className={`flex items-center gap-1 text-xs px-3 py-1.5 bg-white border border-blue-200 rounded hover:bg-gray-50 ${!shipment.label_url && 'opacity-50 cursor-not-allowed'}`}>
+                                                className={`flex items-center gap-1 text-xs px-3 py-1.5 bg-white border border-blue-200 rounded hover:bg-gray-50 ${!shipment.label_url && 'opacity-50 cursor-not-allowed pointer-events-none'}`}>
                                                 <Printer size={14} /> Download Label
                                             </a>
                                             <button
@@ -329,8 +452,8 @@ const AdminOrderDetails = () => {
                             </div>
                             <div className="flex justify-between items-center mb-1">
                                 <span className="text-sm text-gray-500">Status</span>
-                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(order.payment?.status || order.status)}`}>
-                                    {order.payment?.status || order.status}
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${getStatusColor(order.status)}`}>
+                                    {getStatusLabel(order.status)}
                                 </span>
                             </div>
                         </div>

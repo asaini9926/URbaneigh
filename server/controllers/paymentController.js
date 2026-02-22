@@ -17,7 +17,7 @@ function generateIdempotencyKey(userId, items) {
 // ============================================================================
 exports.initiatePayment = async (req, res) => {
   try {
-    const { items, shippingAddress, paymentMethod, totalAmount } = req.body;
+    const { items, shippingAddress, paymentMethod, totalAmount, couponCode } = req.body;
     const userId = req.user.id;
     const user = req.user; // Assuming req.user contains email/phone
 
@@ -57,9 +57,41 @@ exports.initiatePayment = async (req, res) => {
       });
     }
 
-    // Add shipping
-    const shippingCost = serverTotalAmount > 999 ? 0 : 99;
-    const finalTotal = serverTotalAmount + shippingCost;
+    // Add shipping: Flat 79, Free for >= 999
+    const shippingCost = serverTotalAmount >= 999 ? 0 : 79;
+    let finalTotal = serverTotalAmount + shippingCost;
+
+    // Apply Coupon
+    let discountApplied = 0;
+    let appliedCouponId = null;
+
+    if (couponCode) {
+      const coupon = await prisma.coupon.findUnique({ where: { code: couponCode } });
+      if (coupon && coupon.isActive && new Date() <= new Date(coupon.expiryDate) && coupon.usedCount < coupon.usageLimit) {
+
+        // Check if user already used this coupon
+        const existingUsage = await prisma.couponUsage.findFirst({
+          where: {
+            couponId: coupon.id,
+            userId: userId
+          }
+        });
+
+        if (existingUsage) {
+          return res.status(400).json({ error: 'You have already used this coupon.' });
+        }
+        if (serverTotalAmount >= Number(coupon.minOrderVal)) {
+          if (coupon.type === 'PERCENTAGE') {
+            discountApplied = (serverTotalAmount * Number(coupon.value)) / 100;
+          } else {
+            discountApplied = Number(coupon.value);
+          }
+          if (discountApplied > serverTotalAmount) discountApplied = serverTotalAmount;
+          finalTotal -= discountApplied;
+          appliedCouponId = coupon.id;
+        }
+      }
+    }
 
     // Validate frontend total matches server calculation
     if (Math.abs(finalTotal - totalAmount) > 0.01) {
@@ -98,6 +130,23 @@ exports.initiatePayment = async (req, res) => {
         }
       });
 
+      // Update basic usage count
+      if (appliedCouponId) {
+        await prisma.coupon.update({
+          where: { id: appliedCouponId },
+          data: { usedCount: { increment: 1 } }
+        });
+
+        // Log Usage
+        await prisma.couponUsage.create({
+          data: {
+            couponId: appliedCouponId,
+            userId: userId,
+            orderId: order.id
+          }
+        });
+      }
+
       // C. Create Reservations and update inventory reserved_qty
       for (const item of items) {
         // Create reservation record
@@ -124,7 +173,12 @@ exports.initiatePayment = async (req, res) => {
     // Step 3: Call Paytm Initiate Transaction API using Service
     const orderId = result.id;
     const orderNumber = result.orderNumber;
-    const txnAmount = String(Math.round(finalTotal * 100) / 100);
+    const txnAmount = Number(finalTotal).toFixed(2);
+
+    console.log('--- PAYTM INITIATION DEBUG ---');
+    console.log('OrderNumber (used as Paytm OrderId):', orderNumber);
+    console.log('TxnAmount (sent to Paytm):', txnAmount);
+    console.log('MID:', paytmService.mid);
 
     // Provide default email/phone if missing (Dev mode fallback)
     const customerId = `CUST-${userId}`;
@@ -140,8 +194,12 @@ exports.initiatePayment = async (req, res) => {
         customerPhone
       );
 
+      // SDK returns: { body: { txnToken, resultInfo }, head: { ... } }
       if (paytmResponse.body && paytmResponse.body.txnToken) {
         const txnToken = paytmResponse.body.txnToken;
+
+        console.log('TxnToken received from Paytm:', txnToken);
+        console.log('Amount being sent to frontend:', txnAmount);
 
         // Store Paytm response in payment record for auditing
         await prisma.payment.update({
@@ -157,8 +215,8 @@ exports.initiatePayment = async (req, res) => {
           orderId: orderId,
           orderNumber: orderNumber,
           txnToken: txnToken,
-          amount: txnAmount,
-          mid: paytmService.mid, // Send MID to frontend for invoking checkout
+          amount: txnAmount, // MUST be "X.XX" format matching what was sent to Paytm
+          mid: paytmService.mid,
           message: 'Payment initiated successfully. Proceed to Paytm.'
         });
       } else {
@@ -480,3 +538,29 @@ exports.paytmWebhook = async (req, res) => {
   }
 };
 
+// ============================================================================
+// PAYTM CALLBACK (Redirect flow - user is redirected here after payment)
+// ============================================================================
+exports.paytmCallback = async (req, res) => {
+  try {
+    const data = req.body;
+    console.log('--- PAYTM CALLBACK RECEIVED ---');
+    console.log('Data:', JSON.stringify(data, null, 2));
+
+    const orderNumber = data.ORDERID;
+    const status = data.STATUS; // TXN_SUCCESS, TXN_FAILURE, PENDING
+    const txnId = data.TXNID || '';
+
+    // Redirect the user back to the React frontend with the result
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const redirectUrl = `${clientUrl}/payment-result?orderNumber=${encodeURIComponent(orderNumber)}&status=${encodeURIComponent(status)}&txnId=${encodeURIComponent(txnId)}`;
+
+    console.log('Redirecting user to:', redirectUrl);
+    res.redirect(redirectUrl);
+
+  } catch (error) {
+    console.error('Callback error:', error);
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    res.redirect(`${clientUrl}/payment-result?status=ERROR`);
+  }
+};
