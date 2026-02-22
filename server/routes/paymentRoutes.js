@@ -13,4 +13,7 @@ router.post('/verify', authMiddleware.protect, paymentController.verifyPayment);
 // Webhook from Paytm (no auth required - Paytm will call this)
 router.post('/webhook/paytm', paymentController.paytmWebhook);
 
+// Callback URL for redirect flow (Paytm redirects user here after payment)
+router.post('/callback', paymentController.paytmCallback);
+
 module.exports = router;

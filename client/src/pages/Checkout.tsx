@@ -160,19 +160,7 @@ const Checkout = () => {
     );
   };
 
-  // Load Paytm script on component mount
-  useEffect(() => {
-    const script = document.createElement("script");
-    const paytmEnv = import.meta.env.VITE_PAYTM_ENV || 'STAGING';
-    script.src = paytmEnv === 'PROD'
-      ? "https://securegw.paytm.in/merchantpgp/gpay.js"
-      : "https://securegw-stage.paytm.in/merchantpgp/gpay.js";
-    script.async = true;
-    document.body.appendChild(script);
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
+  // Paytm script is loaded via <head> in index.html (required by Paytm docs)
 
   const handleApplyCoupon = async () => {
     if (!couponCode) return;
@@ -203,11 +191,9 @@ const Checkout = () => {
 
   if (items.length === 0) return null;
 
-  // Prod-3: Delivery is free (0), but we show 79 - 79 logic
-  const shippingChargeDisplay = 79;
-  const shippingDiscount = 79; // Logic: Free for you
-  // Ideally, total = totalAmount + 79 - 79 - couponDiscount
-  const finalTotal = totalAmount - discount; // Net effect is 0 shipping
+  const shippingChargeDisplay = totalAmount >= 999 ? 0 : 79;
+  const shippingDiscount = 0; // Removing the fake 'Free for you' logic
+  const finalTotal = totalAmount + shippingChargeDisplay - discount;
 
   const handlePayWithPaytm = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,63 +206,46 @@ const Checkout = () => {
         shippingAddress: formData,
         paymentMethod: "PAYTM",
         totalAmount: finalTotal,
-        isSelfPickup: isSelfDelivery // Pass this flag
+        isSelfPickup: isSelfDelivery,
+        couponCode: appliedCoupon
       };
 
       const response = await api.post("/payments/initiate", orderData);
-      const { txnToken, orderId, orderNumber } = response.data;
+      const { txnToken, orderId, orderNumber, amount, mid } = response.data;
 
-      // Step 2: Initialize Paytm Checkout
-      if (window.Paytm && window.Paytm.CheckoutJS) {
-        const config = {
-          root: "",
-          flow: "DEFAULT",
-          data: {
-            orderId: orderId,
-            token: txnToken,
-            tokenType: "TXN_TOKEN",
-            amount: String(finalTotal),
-          },
-          handler: {
-            notifyMerchant: async function (eventName: string, data: any) {
-              if (eventName === "APP_INITIALIZED") {
-                // Paytm app initialized
-              } else if (eventName === "TRANSACTION_STATUS") {
-                // Verify payment on server
-                try {
-                  const verifyRes = await api.post("/payments/verify", {
-                    orderId,
-                    txnToken,
-                    response: data,
-                  });
+      // Paytm host — derived from VITE_PAYTM_ENV (set in client .env)
+      // STAGING: securestage.paytmpayments.com
+      // PROD:    secure.paytmpayments.com
+      const paytmHost = import.meta.env.VITE_PAYTM_ENV === 'PROD'
+        ? 'https://secure.paytmpayments.com'
+        : 'https://securestage.paytmpayments.com';
 
-                  if (verifyRes.data.status === "success") {
-                    alert(`Order Placed! ID: ${orderNumber}`);
-                    if (!isDirectBuy) {
-                      dispatch(clearCart());
-                    }
-                    navigate(`/profile`);
-                  } else {
-                    alert("Payment verification failed. Order cancelled.");
-                    navigate("/cart");
-                  }
-                } catch (err) {
-                  console.error("Verification error:", err);
-                  alert("Error verifying payment. Please contact support.");
-                  navigate("/cart");
-                }
-              }
-            },
-          },
-        };
+      // Store order info in sessionStorage so we can verify after redirect back
+      sessionStorage.setItem('paytm_order_id', String(orderId));
+      sessionStorage.setItem('paytm_order_number', orderNumber);
+      sessionStorage.setItem('paytm_is_direct_buy', String(isDirectBuy));
 
-        window.Paytm.CheckoutJS.onLoad(function executeAfterLoad() {
-          window.Paytm.CheckoutJS.invoke(config);
-        });
-      } else {
-        alert("Paytm SDK not loaded. Please refresh the page.");
-        setLoading(false);
-      }
+      // Build and submit a form to Paytm (POST redirect)
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = `${paytmHost}/theia/api/v1/showPaymentPage?mid=${mid}&orderId=${orderNumber}`;
+
+      const fields: Record<string, string> = {
+        mid: mid,
+        orderId: orderNumber,
+        txnToken: txnToken,
+      };
+
+      Object.entries(fields).forEach(([key, value]) => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+      });
+
+      document.body.appendChild(form);
+      form.submit();
     } catch (error: any) {
       console.error("Payment initiation error:", error);
       alert(error.response?.data?.error || "Failed to initiate payment");
@@ -293,7 +262,8 @@ const Checkout = () => {
         items: items.map((i) => ({ id: i.id, quantity: i.quantity })),
         shippingAddress: formData,
         paymentMethod: "COD",
-        isSelfPickup: isSelfDelivery
+        isSelfPickup: isSelfDelivery,
+        couponCode: appliedCoupon
       };
 
       const res = await api.post("/orders", orderData);
@@ -616,11 +586,7 @@ const Checkout = () => {
               </div>
               <div className="flex justify-between text-gray-600">
                 <span>Delivery Charge</span>
-                <span>₹{shippingChargeDisplay}</span>
-              </div>
-              <div className="flex justify-between text-green-600">
-                <span>Offer For You</span>
-                <span>-₹{shippingDiscount}</span>
+                <span>{shippingChargeDisplay === 0 ? 'FREE' : `₹${shippingChargeDisplay}`}</span>
               </div>
               {discount > 0 && (
                 <div className="flex justify-between text-green-600">

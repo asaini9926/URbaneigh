@@ -32,6 +32,7 @@ model User {
   tickets       Ticket[]
   auditLogs     AuditLog[] // Logs of actions done by this user
   returns       Return[]
+  couponUsages  CouponUsage[]
 
   @@map("users")
 }
@@ -220,6 +221,7 @@ model Order {
   return          Return?
   refund          Refund?
   reconciliationAlerts ReconciliationAlert[]
+  couponUsages    CouponUsage[]
 
   @@map("orders")
 }
@@ -383,7 +385,24 @@ model Coupon {
 
   createdAt   DateTime  @default(now())
   
+  usages      CouponUsage[]
+
   @@map("coupons")
+}
+
+model CouponUsage {
+  id        Int      @id @default(autoincrement())
+  couponId  Int
+  userId    Int
+  orderId   Int
+  createdAt DateTime @default(now())
+
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([couponId, userId]) // A user can only use a specific coupon once
+  @@map("coupon_usages")
 }
 
 // ==============================
@@ -598,7 +617,8 @@ enum OrderStatus {
   CREATED            // Order placed, awaiting payment
   PAYMENT_PENDING    // Payment gateway initiated
   PAYMENT_FAILED     // Payment failed/declined
-  PAID               // Payment confirmed (or COD after OTP verification)
+  CONFIRMED          // COD order confirmed, awaiting fulfillment (payment on delivery)
+  PAID               // Payment confirmed (online payment)
   READY_TO_PACK      // Order ready for warehouse to pack
   PACKED             // Order packed, ready for courier pickup
   READY_TO_PICK      // Ready for courier
@@ -639,6 +659,7 @@ enum ShipmentStatus {
   DELIVERED               // Delivered
   FAILED                  // Delivery failed
   RETURN_INITIATED        // Return flow started
+  CANCELLED               // Shipment was cancelled
 }
 
 enum FulfillmentStatus {

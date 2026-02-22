@@ -1,176 +1,126 @@
-const https = require('https');
-const PaytmChecksum = require('paytmchecksum');
-// Note: The paytm-pg-node-sdk usually exports specific modules. 
-// We will use standard REST calls with Checksum helper for maximum control as SDKs can be wrappers.
-// Actually, let's use the official logic for checksum generation and standard https/axios for requests.
+const Paytm = require('paytm-pg-node-sdk');
 
 class PaytmService {
   constructor() {
     this.mid = process.env.PAYTM_MID;
     this.key = process.env.PAYTM_MERCHANT_KEY;
     this.website = process.env.PAYTM_WEBSITE || "WEBSTAGING";
-    this.host = this.website === 'WEBSTAGING'
-      ? 'securegw-stage.paytm.in'
-      : 'securegw.paytm.in'; // Production host
 
-    this.callbackUrl = process.env.PAYTM_CALLBACK_URL;
+    // Initialize the official Node SDK globally
+    const environment = process.env.PAYTM_ENV === 'PROD'
+      ? Paytm.LibraryConstants.PRODUCTION_ENVIRONMENT
+      : Paytm.LibraryConstants.STAGING_ENVIRONMENT;
+
+    Paytm.MerchantProperties.initialize(environment, this.mid, this.key, this.website);
+
+    // CRITICAL: Override the SDK's default callback URL
+    // SDK default: https://pg-staging.paytm.in/MerchantSite/bankResponse
+    // This causes SESSION_EXPIRED because CheckoutJS/showPaymentPage runs on securegw-stage.paytm.in
+    // Must use the SAME domain for the callback
+    if (process.env.PAYTM_CALLBACK_URL && process.env.PAYTM_CALLBACK_URL.trim() !== '') {
+      Paytm.MerchantProperties.setCallbackUrl(process.env.PAYTM_CALLBACK_URL);
+    } else {
+      const defaultCallback = process.env.PAYTM_ENV === 'PROD'
+        ? 'https://secure.paytmpayments.com/theia/paytmCallback?ORDER_ID='
+        : 'https://securestage.paytmpayments.com/theia/paytmCallback?ORDER_ID=';
+      Paytm.MerchantProperties.setCallbackUrl(defaultCallback);
+    }
+
+    console.log(`PaytmService initialized: MID=${this.mid}, ENV=${process.env.PAYTM_ENV}, WEBSITE=${this.website}`);
+    console.log(`Callback URL: ${Paytm.MerchantProperties.getCallbackUrl()}`);
   }
 
-  /**
-   * Initiate Transaction to get Token
-   * @param {String} orderId 
-   * @param {String} amount 
-   * @param {String} customerId 
-   */
   async initiateTransaction(orderId, amount, customerId, customerEmail, customerPhone) {
+    const channelId = Paytm.EChannelId.WEB;
+    const txnAmount = Paytm.Money.constructWithCurrencyAndValue(Paytm.EnumCurrency.INR, amount.toString());
+    const userInfo = new Paytm.UserInfo(customerId.toString());
 
-    // [FIX] Use Paytm's internal callback or environment variable
-    // Once this works, you must use NGROK for your local server to handle updates.
-    const safeCallbackUrl = process.env.PAYTM_CALLBACK_URL || `https://securegw-stage.paytm.in/theia/paytmCallback?ORDER_ID=${orderId}`;
+    if (customerEmail) userInfo.setEmail(customerEmail);
+    if (customerPhone) userInfo.setMobile(customerPhone);
 
-    const paytmParams = {
-      body: {
-        "requestType": "Payment",
-        "mid": this.mid,
-        "websiteName": this.website,
-        "orderId": orderId,
-        "callbackUrl": safeCallbackUrl, // <--- CHANGED THIS
-        "txnAmount": {
-          "value": amount.toString(),
-          "currency": "INR",
-        },
-        "userInfo": {
-          "custId": customerId.toString(),
-          // [OPTIONAL] Comment these out if it still fails (some Test IDs dislike email/mobile)
-          "mobile": customerPhone || "9999999999",
-          "email": customerEmail || "test@example.com",
-        },
-        "channelId": "WEB",
-        "industryTypeId": "Retail"
+    const paymentDetailBuilder = new Paytm.PaymentDetailBuilder(channelId, orderId, txnAmount, userInfo);
+    const paymentDetail = paymentDetailBuilder.build();
+
+    console.log("--- PAYTM PAYLOAD ---", JSON.stringify(paymentDetail, null, 2));
+
+    try {
+      const response = await Paytm.Payment.createTxnToken(paymentDetail);
+
+      // Map SDK response back to match previous expectations in paymentController
+      const body = response.responseObject.body;
+      const head = response.responseObject.head;
+
+      if (body && body.resultInfo && body.resultInfo.resultStatus === 'S') {
+        return {
+          body: {
+            resultInfo: body.resultInfo,
+            txnToken: body.txnToken
+          },
+          head: head
+        };
       }
-    };
 
-    const checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), this.key);
-    paytmParams.head = {
-      "signature": checksum
-    };
+      return { body: body };
 
-    return this.makeRequest('/theia/api/v1/initiateTransaction', paytmParams);
+    } catch (error) {
+      console.error("Paytm SDK Init Error:", error);
+      throw error;
+    }
   }
-  /**
-   * Verify Payment Status
-   * @param {String} orderId 
-   */
+
   async getTxnStatus(orderId) {
-    const paytmParams = {
-      body: {
-        "mid": this.mid,
-        "orderId": orderId,
-      }
-    };
+    const paymentStatusDetailBuilder = new Paytm.PaymentStatusDetailBuilder(orderId);
+    const paymentStatusDetail = paymentStatusDetailBuilder.build();
 
-    const checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), this.key);
-    paytmParams.head = {
-      "signature": checksum
-    };
+    try {
+      const response = await Paytm.Payment.getPaymentStatus(paymentStatusDetail);
+      const body = response.responseObject.body;
 
-    return this.makeRequest('/v3/order/status', paytmParams);
-  }
-
-  /**
-   * Initiate Refund
-   * @param {String} orderId 
-   * @param {String} txnId - Paytm Transaction ID from Payment
-   * @param {String} refId - Unique Refund ID (e.g., REF_ORDERID)
-   * @param {String} amount 
-   */
-  async initiateRefund(orderId, txnId, refId, amount) {
-    const paytmParams = {
-      body: {
-        "mid": this.mid,
-        "txnType": "REFUND",
-        "orderId": orderId,
-        "txnId": txnId,
-        "refId": refId,
-        "refundAmount": amount.toString(),
-      }
-    };
-
-    const checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), this.key);
-    paytmParams.head = {
-      "signature": checksum
-    };
-
-    return this.makeRequest('/refund/apply', paytmParams);
-  }
-
-  /**
-   * Get Refund Status
-   * @param {String} orderId 
-   * @param {String} refId 
-   */
-  async getRefundStatus(orderId, refId) {
-    const paytmParams = {
-      body: {
-        "mid": this.mid,
-        "orderId": orderId,
-        "refId": refId,
-      }
-    };
-
-    const checksum = await PaytmChecksum.generateSignature(JSON.stringify(paytmParams.body), this.key);
-    paytmParams.head = {
-      "signature": checksum
-    };
-
-    return this.makeRequest('/v2/refund/status', paytmParams);
-  }
-
-  /**
-   * Validate Webhook/Callback Checksum
-   */
-  async validateChecksum(params, checksum) {
-    return PaytmChecksum.verifySignature(params, this.key, checksum);
-  }
-
-  // Helper for making HTTPS calls
-  makeRequest(endpoint, params) {
-    return new Promise((resolve, reject) => {
-      const post_data = JSON.stringify(params);
-
-      const options = {
-        hostname: this.host,
-        port: 443,
-        path: `${endpoint}?mid=${this.mid}&orderId=${params.body.orderId}`,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': post_data.length
+      // Map SDK response to previous expectations
+      return {
+        body: {
+          resultInfo: body.resultInfo,
+          txnId: body.txnId,
+          bankTxnId: body.bankTxnId,
+          paymentMode: body.paymentMode
         }
       };
+    } catch (error) {
+      console.error("Paytm SDK Status Error:", error);
+      throw error;
+    }
+  }
 
-      const req = https.request(options, (res) => {
-        let response = "";
-        res.on('data', (chunk) => {
-          response += chunk;
-        });
-        res.on('end', () => {
-          try {
-            resolve(JSON.parse(response));
-          } catch (e) {
-            console.error("Paytm Response Parse Error", response);
-            reject(e);
-          }
-        });
-      });
+  async initiateRefund(orderId, txnId, refId, amount) {
+    const refundAmount = Paytm.Money.constructWithCurrencyAndValue(Paytm.EnumCurrency.INR, amount.toString());
+    const refundDetailBuilder = new Paytm.RefundDetailBuilder(orderId, refId, txnId, refundAmount);
+    const refundDetail = refundDetailBuilder.build();
 
-      req.on('error', (e) => {
-        reject(e);
-      });
+    try {
+      const response = await Paytm.Refund.initiateRefund(refundDetail);
+      return { body: response.responseObject.body };
+    } catch (error) {
+      console.error("Paytm SDK Refund Error:", error);
+      throw error;
+    }
+  }
 
-      req.write(post_data);
-      req.end();
-    });
+  async getRefundStatus(orderId, refId) {
+    const refundStatusDetailBuilder = new Paytm.RefundStatusDetailBuilder(orderId, refId);
+    const refundStatusDetail = refundStatusDetailBuilder.build();
+
+    try {
+      const response = await Paytm.Refund.getRefundStatus(refundStatusDetail);
+      return { body: response.responseObject.body };
+    } catch (error) {
+      console.error("Paytm SDK Refund Status Error:", error);
+      throw error;
+    }
+  }
+
+  async validateChecksum(params, checksum) {
+    const PaytmChecksum = require('paytmchecksum');
+    return PaytmChecksum.verifySignature(params, this.key, checksum);
   }
 }
 

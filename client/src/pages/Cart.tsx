@@ -8,7 +8,7 @@ const Cart = () => {
     const { items, totalAmount } = useSelector((state: RootState) => state.cart);
     const dispatch = useDispatch();
 
-    const shipping = totalAmount > 999 ? 0 : 99;
+    const shipping = totalAmount >= 999 ? 0 : 79;
     const finalTotal = totalAmount + shipping;
 
     if (items.length === 0) {

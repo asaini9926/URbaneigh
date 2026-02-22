@@ -63,17 +63,33 @@ export default function OrderDetails() {
   };
 
   const getStatusStep = (status: string) => {
-    const steps = [
-      'CREATED',
-      'PAYMENT_PENDING',
-      'PAID',
-      'READY_TO_PICK',
-      'PICKED_UP',
-      'IN_TRANSIT',
-      'OUT_FOR_DELIVERY',
-      'DELIVERED',
-    ];
-    return steps.indexOf(status);
+    if (['CREATED', 'PAYMENT_PENDING', 'PAYMENT_FAILED'].includes(status)) return 0;
+    if (['PAID', 'CONFIRMED'].includes(status)) return 1;
+    if (['READY_TO_PACK', 'PACKED', 'READY_TO_PICK'].includes(status)) return 2;
+    if (['PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(status)) return 3;
+    if (['DELIVERED'].includes(status)) return 4;
+    return -1;
+  };
+
+  const getStatusLabel = (status: string) => {
+    const labels: { [key: string]: string } = {
+      CREATED: 'Awaiting Payment',
+      PAYMENT_PENDING: 'Processing Payment',
+      PAYMENT_FAILED: 'Payment Failed',
+      CONFIRMED: 'Order Confirmed',
+      PAID: 'Processing Order',
+      READY_TO_PACK: 'Packing',
+      PACKED: 'Ready for Pickup',
+      READY_TO_PICK: 'Awaiting Courier',
+      PICKED_UP: 'Shipped',
+      IN_TRANSIT: 'In Transit',
+      OUT_FOR_DELIVERY: 'Out for Delivery',
+      DELIVERED: 'Delivered',
+      CANCELLED: 'Cancelled',
+      RETURN_REQUESTED: 'Return Requested',
+      RETURNED: 'Returned',
+    };
+    return labels[status] || status.replace(/_/g, ' ');
   };
 
   if (loading) {
@@ -151,7 +167,7 @@ export default function OrderDetails() {
               <div className="flex justify-between items-center">
                 {[
                   { step: 1, label: 'Order Placed' },
-                  { step: 2, label: 'Paid' },
+                  { step: 2, label: order.paymentMethod === 'COD' ? 'Confirmed' : 'Paid' },
                   { step: 3, label: 'Processing' },
                   { step: 4, label: 'In Transit' },
                   { step: 5, label: 'Delivered' },
@@ -190,7 +206,7 @@ export default function OrderDetails() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Status</p>
-                  <p className="font-semibold text-gray-900">{order.payment?.status || 'Pending'}</p>
+                  <p className="font-bold text-indigo-600">{getStatusLabel(order.status)}</p>
                 </div>
               </div>
 

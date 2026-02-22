@@ -70,7 +70,7 @@ async function main() {
             email: 'admin@comfortclothing.com',
             password_hash: hashedPassword,
             isActive: true,
-            phone: '9999999999'
+            phone: '9602799926'
         },
     });
 

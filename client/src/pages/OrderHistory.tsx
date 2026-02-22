@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import Navbar from '../components/Navbar';
+import api from '../api/axios';
 
 
 interface OrderItem {
@@ -35,10 +34,7 @@ export default function OrderHistory() {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await axios.get('import.meta.env.VITE_API_URL/orders/my-orders', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await api.get('/orders/my-orders');
       setOrders(Array.isArray(response.data) ? response.data : (response.data.orders || []));
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to load orders');
@@ -51,12 +47,16 @@ export default function OrderHistory() {
     const colors: { [key: string]: string } = {
       CREATED: 'bg-yellow-100 text-yellow-800',
       PAYMENT_PENDING: 'bg-blue-100 text-blue-800',
+      PAYMENT_FAILED: 'bg-red-100 text-red-800',
+      CONFIRMED: 'bg-emerald-100 text-emerald-800',
       PAID: 'bg-green-100 text-green-800',
+      READY_TO_PACK: 'bg-orange-50 text-orange-700',
+      PACKED: 'bg-orange-100 text-orange-800',
       READY_TO_PICK: 'bg-orange-100 text-orange-800',
       PICKED_UP: 'bg-indigo-100 text-indigo-800',
       IN_TRANSIT: 'bg-purple-100 text-purple-800',
       OUT_FOR_DELIVERY: 'bg-pink-100 text-pink-800',
-      DELIVERED: 'bg-green-200 text-green-900',
+      DELIVERED: 'bg-green-600 text-white',
       CANCELLED: 'bg-red-100 text-red-800',
       RETURN_REQUESTED: 'bg-orange-200 text-orange-900',
       RETURNED: 'bg-red-200 text-red-900',
@@ -64,9 +64,29 @@ export default function OrderHistory() {
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
 
+  const getStatusLabel = (status: string) => {
+    const labels: { [key: string]: string } = {
+      CREATED: 'Awaiting Payment',
+      PAYMENT_PENDING: 'Processing Payment',
+      PAYMENT_FAILED: 'Payment Failed',
+      CONFIRMED: 'Order Confirmed',
+      PAID: 'Processing',
+      READY_TO_PACK: 'Packing',
+      PACKED: 'Ready for Pickup',
+      READY_TO_PICK: 'Awaiting Courier',
+      PICKED_UP: 'Shipped',
+      IN_TRANSIT: 'In Transit',
+      OUT_FOR_DELIVERY: 'Out for Delivery',
+      DELIVERED: 'Delivered',
+      CANCELLED: 'Cancelled',
+      RETURN_REQUESTED: 'Return Requested',
+      RETURNED: 'Returned',
+    };
+    return labels[status] || status.replace(/_/g, ' ');
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
-      <Navbar />
       <div className="flex-grow bg-gray-50">
         <div className="max-w-6xl mx-auto px-4 py-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-8">Order History</h1>
@@ -112,8 +132,8 @@ export default function OrderHistory() {
                         {new Date(order.createdAt).toLocaleDateString()}
                       </p>
                     </div>
-                    <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(order.status)}`}>
-                      {order.status.replace(/_/g, ' ')}
+                    <span className={`px-4 py-2 rounded-full text-sm font-bold shadow-sm ${getStatusColor(order.status)}`}>
+                      {getStatusLabel(order.status)}
                     </span>
                   </div>
 

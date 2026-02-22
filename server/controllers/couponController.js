@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 exports.createCoupon = async (req, res) => {
     try {
         const { code, type, value, minOrderVal, expiryDate, usageLimit } = req.body;
-        
+
         const coupon = await prisma.coupon.create({
             data: {
                 code: code.toUpperCase(),
@@ -47,6 +47,8 @@ exports.verifyCoupon = async (req, res) => {
     try {
         const { code, cartTotal } = req.body; // User sends code + current cart value
 
+        const userId = req.user.id; // Added JWT validation for coupon validation
+
         const coupon = await prisma.coupon.findUnique({
             where: { code: code.toUpperCase() }
         });
@@ -58,6 +60,17 @@ exports.verifyCoupon = async (req, res) => {
         if (coupon.usedCount >= coupon.usageLimit) return res.status(400).json({ error: 'Coupon usage limit reached' });
         if (Number(cartTotal) < Number(coupon.minOrderVal)) {
             return res.status(400).json({ error: `Minimum order value is ₹${coupon.minOrderVal}` });
+        }
+
+        // Check if user has already used this coupon
+        const existingUsage = await prisma.couponUsage.findUnique({
+            where: {
+                couponId_userId: { couponId: coupon.id, userId: userId }
+            }
+        });
+
+        if (existingUsage) {
+            return res.status(400).json({ error: 'You have already used this coupon.' });
         }
 
         // Calculate Discount
@@ -78,6 +91,24 @@ exports.verifyCoupon = async (req, res) => {
             finalTotal: Number(cartTotal) - discountAmount
         });
 
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+};
+
+// [ADMIN] Get Coupon Usages
+exports.getCouponUsages = async (req, res) => {
+    try {
+        const couponId = Number(req.params.id);
+        const usages = await prisma.couponUsage.findMany({
+            where: { couponId },
+            include: {
+                user: { select: { id: true, name: true, email: true } },
+                order: { select: { id: true, orderNumber: true, totalAmount: true, status: true, createdAt: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(usages);
     } catch (error) {
         res.status(500).json({ error: error.message });
     }

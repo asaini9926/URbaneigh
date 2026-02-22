@@ -3,6 +3,9 @@
     "@types/node": "^24.10.1",
     "prisma": "^6.14.0"
   },
+  "scripts": {
+    "setup": "npm install --legacy-peer-deps && cd client && npm install --legacy-peer-deps && cd ../server && npm install --legacy-peer-deps"
+  },
   "dependencies": {
     "multer": "^2.0.2"
   }

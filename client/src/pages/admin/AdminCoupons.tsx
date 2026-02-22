@@ -1,11 +1,16 @@
 import React, { useEffect, useState } from "react";
 import api from "../../api/axios";
-import { Ticket, Plus, Trash2, X } from "lucide-react";
+import { Ticket, Plus, Trash2, X, Eye } from "lucide-react";
 
 const AdminCoupons = () => {
   const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+
+  // Usages Modal State
+  const [viewingUsages, setViewingUsages] = useState<any[] | null>(null);
+  const [viewingCouponCode, setViewingCouponCode] = useState("");
+  const [loadingUsages, setLoadingUsages] = useState(false);
 
   // Form State
   const [newCoupon, setNewCoupon] = useState({
@@ -59,6 +64,21 @@ const AdminCoupons = () => {
       fetchCoupons();
     } catch (err) {
       alert("Delete failed");
+    }
+  };
+
+  const handleViewUsages = async (couponId: number, couponCode: string) => {
+    setLoadingUsages(true);
+    setViewingCouponCode(couponCode);
+    setViewingUsages([]); // opens modal with empty state while loading
+    try {
+      const res = await api.get(`/coupons/${couponId}/usages`);
+      setViewingUsages(res.data);
+    } catch (err) {
+      alert("Failed to load usages");
+      setViewingUsages(null);
+    } finally {
+      setLoadingUsages(false);
     }
   };
 
@@ -206,15 +226,75 @@ const AdminCoupons = () => {
               </p>
             </div>
 
-            <button
-              onClick={() => handleDelete(coupon.id)}
-              className="absolute bottom-4 right-4 text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <Trash2 size={18} />
-            </button>
+            <div className="flex justify-end gap-2 mt-2">
+              <button
+                onClick={() => handleViewUsages(coupon.id, coupon.code)}
+                className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 rounded-full transition-colors"
+                title="View Usages"
+              >
+                <Eye size={18} />
+              </button>
+              <button
+                onClick={() => handleDelete(coupon.id)}
+                className="text-red-400 hover:text-red-600 bg-red-50 p-2 rounded-full transition-colors"
+                title="Delete Coupon"
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
           </div>
         ))}
       </div>
+
+      {/* Usages Modal */}
+      {viewingUsages !== null && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto relative">
+            <button
+              onClick={() => setViewingUsages(null)}
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-800"
+            >
+              <X size={24} />
+            </button>
+            <h2 className="text-xl font-bold mb-4">
+              Usages for {viewingCouponCode}
+            </h2>
+
+            {loadingUsages ? (
+              <p className="text-gray-500">Loading...</p>
+            ) : viewingUsages.length === 0 ? (
+              <p className="text-gray-500">This coupon has not been used yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left font-mono text-sm">
+                  <thead className="bg-gray-100 text-gray-600 uppercase text-xs">
+                    <tr>
+                      <th className="p-3">User</th>
+                      <th className="p-3">Order</th>
+                      <th className="p-3">Order Total</th>
+                      <th className="p-3">Order Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {viewingUsages.map((usage, idx) => (
+                      <tr key={idx} className="border-b last:border-0 hover:bg-gray-50">
+                        <td className="p-3">
+                          <div className="font-semibold">{usage.user?.name}</div>
+                          <div className="text-xs text-gray-500">{usage.user?.email}</div>
+                        </td>
+                        <td className="p-3">{usage.order?.orderNumber}</td>
+                        <td className="p-3">₹{usage.order?.totalAmount}</td>
+                        <td className="p-3">{new Date(usage.createdAt).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
